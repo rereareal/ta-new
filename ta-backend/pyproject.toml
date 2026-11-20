@@ -6,9 +6,25 @@ dependencies = [
     "fastapi>=0.163.1",
     "pyjwt>=2.15.1",
     "sqlmodel>=0.0.50",
+    "uvicorn>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
     "ruff>=0.17.5",
 ]
+
+[project.scripts]
+dev = "scripts.dev:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+# 只安装这些目录：scripts/ 是开发工具，core/ modules/ 是应用代码，均无 __init__.py
+# （PEP 420 命名空间包），所以显式列出。main.py 不安装：uvicorn 会把当前目录加进 sys.path。
+[tool.hatch.build.targets.wheel]
+only-include = ["scripts", "core", "modules"]
