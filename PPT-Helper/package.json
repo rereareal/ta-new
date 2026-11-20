@@ -1,0 +1,24 @@
+{
+  "name": "ppt-helper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Markdown 写，浏览器放的极简幻灯片",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "bin": {
+    "ppt": "./server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "server.js",
+    "index.html",
+    "slides.js",
+    "slides.css",
+    "vendor",
+    "decks"
+  ]
+}

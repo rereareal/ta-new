@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slides</title>
+
+<link rel="stylesheet" href="vendor/highlight-github.css">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<link rel="stylesheet" href="slides.css">
+</head>
+<body>
+
+<div id="picker" hidden>
+  <header class="picker-head">
+    <span class="picker-mark"></span>
+    <h1>选择幻灯片</h1>
+  </header>
+  <p class="picker-sub" id="picker-sub"></p>
+  <ul class="picker-list" id="picker-list"></ul>
+  <p class="picker-tip">把 <code>.md</code> 放进 <code>decks/</code> 目录，刷新即可出现在这里。</p>
+</div>
+
+<div id="stage">
+  <div id="deck"></div>
+</div>
+
+<div id="hud"><span id="pageno"></span></div>
+
+<div id="hint">← → / 滚轮 翻页　·　T 目录　·　F 全屏　·　O 概览　·　M 拉伸　·　L 列表</div>
+
+<button id="toc-toggle" type="button" title="目录（T）">目录</button>
+<button id="fit-toggle" type="button" title="切换画面填充方式（M）">等比</button>
+
+<div id="toc-panel" hidden>
+  <div class="toc-card" role="dialog" aria-modal="true" aria-label="目录">
+    <header class="toc-card-head">
+      <span class="toc-card-title">目录</span>
+      <button id="toc-close" type="button" aria-label="关闭目录">×</button>
+    </header>
+    <div id="toc-body" class="toc-card-body"></div>
+  </div>
+</div>
+
+<div id="error" hidden>
+  <h2>没能读到幻灯片文件</h2>
+  <p id="error-msg"></p>
+  <p class="muted">把 <code>.md</code> 文件直接拖进这个窗口也可以播放。</p>
+</div>
+
+<script defer src="vendor/marked.min.js"></script>
+<script defer src="vendor/highlight.min.js"></script>
+<script defer src="vendor/katex/katex.min.js"></script>
+<script defer src="vendor/katex/auto-render.min.js"></script>
+<script defer src="slides.js"></script>
+
+</body>
+</html>
