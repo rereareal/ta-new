@@ -1,16 +1,33 @@
-"""配置常量。
+"""应用配置：从环境变量和 .env 文件读取。
 
 文档：设置与环境变量 https://fastapi.tiangolo.com/zh/advanced/settings/
 
-真实项目应改成从环境变量 / .env 读取（配合 pydantic-settings），
-这里的硬编码值仅用于本地开发。
+优先级：系统环境变量 > 项目根目录 .env > 字段默认值。
+本地开发请先复制模板：cp .env.example .env
 """
 
-DATABASE_URL = "sqlite:///./ta.db"
+from pathlib import Path
 
-# JWT 签名密钥：泄露 = 任何人都能伪造登录态，生产环境必须从环境变量注入。
-SECRET_KEY = "dev-only-secret-key-change-me-in-production"
-ALGORITHM = "HS256"
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# token 有效期（分钟）
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+_ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=_ENV_FILE,
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    database_url: str = "sqlite:///./ta.db"
+
+    # JWT 签名密钥：必填，泄露 = 任何人都能伪造登录态，切勿提交到仓库。
+    secret_key: str
+    algorithm: str = "HS256"
+
+    # token 有效期（分钟）
+    access_token_expire_minutes: int = 60 * 24
+
+
+settings = Settings()  # type: ignore[call-arg]

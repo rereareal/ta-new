@@ -9,11 +9,14 @@ from typing import Annotated
 from fastapi import Depends
 from sqlmodel import Session, SQLModel, create_engine
 
-from core.config import DATABASE_URL
+from core.config import settings
 
-# check_same_thread=False 允许 SQLite 连接跨线程使用：
+# check_same_thread=False 仅用于 SQLite，允许连接跨线程使用：
 # FastAPI 会把普通 def 接口丢到线程池执行，连接可能在不同线程里被用到。
-enging = create_engine(url=DATABASE_URL, connect_args={"check_same_thread": False})
+_connect_args = (
+    {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+)
+enging = create_engine(url=settings.database_url, connect_args=_connect_args)
 
 
 def init_db() -> None:

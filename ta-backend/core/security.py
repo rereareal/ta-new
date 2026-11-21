@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt  # PyJWT
 
-from core.config import ACCESS_TOKEN_EXPIRE_MINUTES, ALGORITHM, SECRET_KEY
+from core.config import settings
 
 _SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 1
 
@@ -49,14 +49,20 @@ def verify_password(password: str, password_hash: str) -> bool:
 # ── Token：JWT（服务端不存 session，靠签名自证）────────────────────────
 def create_access_token(subject: str) -> str:
     """把用户名放进 sub 字段，带过期时间，用 SECRET_KEY 签名。"""
-    expire = datetime.now(UTC) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    return jwt.encode({"sub": subject, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
+    return jwt.encode(
+        {"sub": subject, "exp": expire},
+        settings.secret_key,
+        algorithm=settings.algorithm,
+    )
 
 
 def decode_token(token: str) -> str | None:
     """验签 + 检查过期；篡改、伪造、过期都会抛异常，统一当作无效返回 None。"""
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token, settings.secret_key, algorithms=[settings.algorithm]
+        )
     except jwt.PyJWTError:
         return None
     return payload.get("sub")

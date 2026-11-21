@@ -11,8 +11,9 @@ FastAPI + SQLModel 后端（目前包含一套用户名密码 + JWT 的认证接
 
 ```bash
 cd ta-backend
-uv sync      # 安装依赖到 .venv
-uv run dev   # 启动开发服务器
+cp .env.example .env  # 首次启动前复制配置模板
+uv sync               # 安装依赖到 .venv
+uv run dev            # 启动开发服务器
 ```
 
 - `uv run dev` 监听 `http://127.0.0.1:3000`，默认开启代码热重载；默认地址是 `scripts/dev.py` 里的 `DEV_HOST` / `DEV_PORT`（uvicorn 自身默认是 8000，这里约定用 3000）。
@@ -32,24 +33,24 @@ dev              # 等价于 uv run dev
 
 ## 配置
 
-当前配置都是 `core/config.py` 里的硬编码常量，**仅供本地开发**：
+配置通过 `core/config.py`（`pydantic-settings`）从环境变量和 `.env` 文件读取，优先级为：**系统环境变量 > `.env` > 默认值**（参考 [FastAPI 设置与环境变量](https://fastapi.tiangolo.com/zh/advanced/settings/)）。
 
-| 常量 | 含义 |
-| --- | --- |
-| `DATABASE_URL` | 数据库连接串，默认 `sqlite:///./ta.db` |
-| `SECRET_KEY` | JWT 签名密钥，泄露等于任何人都能伪造登录态 |
-| `ALGORITHM` | JWT 算法，默认 `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | token 有效期（分钟） |
+仓库只提交模板 `.env.example`，本地运行前复制一份 `.env`（已被 `.gitignore` 忽略）：
 
-上线前必须改成从环境变量 / `.env` 读取（配合 `pydantic-settings`），参考
-[FastAPI 设置与环境变量](https://fastapi.tiangolo.com/zh/advanced/settings/)。
+| 环境变量 | 含义 | 默认值 |
+| --- | --- | --- |
+| `DATABASE_URL` | 数据库连接串 | `sqlite:///./ta.db` |
+| `SECRET_KEY` | JWT 签名密钥，泄露等于任何人都能伪造登录态 | **必填**（生产环境务必换成随机长串） |
+| `ALGORITHM` | JWT 算法 | `HS256` |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | token 有效期（分钟） | `1440` |
 
 ## 目录结构
 
 ```
 main.py                  应用入口：lifespan（启动建表、关闭释放连接池）、统一错误处理、挂路由
+.env.example             环境变量配置模板（复制为 .env 使用）
 core/                    应用运行期的基础设施（被 main.py / modules 依赖）
-  config.py              配置常量
+  config.py              应用配置（pydantic-settings，从环境变量 / .env 读取）
   database.py            engine、init_db()、请求级 Session 依赖 SessionDep
   security.py            密码哈希与 JWT 签发/校验
   errors.py              ServiceError 与全局错误处理器（统一 {code, detail}）
