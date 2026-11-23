@@ -93,8 +93,23 @@ function isCover(body) {
 
 /* ---------- 扩展语法：::: cols / ::: note|tip|warn ---------- */
 
-/** 把 ::: 容器展开成 HTML，再交给 marked。代码块内的 ::: 不算 */
-function expandBlocks(md) {
+/** 渲染 Markdown（含 ::: 扩展块）：用占位符隔离扩展块 HTML，避免内含空行时被 marked 二次解析 */
+function renderMarkdown(md) {
+  const placeholders = [];
+  const expanded = expandBlocks(md, html => {
+    const id = placeholders.length;
+    placeholders.push(html);
+    return `\n\n<div data-block-ph="${id}"></div>\n\n`;
+  });
+  let out = marked.parse(expanded);
+  for (let i = 0; i < placeholders.length; i++) {
+    out = out.replace(`<div data-block-ph="${i}"></div>`, () => placeholders[i]);
+  }
+  return out;
+}
+
+/** 把 ::: 容器展开成 HTML（通过 hold 寄存为占位符）。代码块内的 ::: 不算 */
+function expandBlocks(md, hold = html => html) {
   const lines = md.split(/\r?\n/);
   const out = [];
   let inFence = false;
@@ -115,7 +130,7 @@ function expandBlocks(md) {
     const kind = open[1];
     const arg = (open[2] || '').trim();
 
-    // 找到配对的结束行（支持嵌套一层）
+    // 找到配对的结束行（支持嵌套）
     let depth = 1;
     let j = i + 1;
     let fence = false;
@@ -131,7 +146,7 @@ function expandBlocks(md) {
     }
 
     const body = lines.slice(i + 1, j).join('\n');
-    out.push(renderBlock(kind, arg, body));
+    out.push(hold(renderBlock(kind, arg, body)));
     i = j;
   }
 
@@ -146,7 +161,7 @@ function renderBlock(kind, arg, body) {
   }
   if (kind === 'chapter') {
     const title = arg ? marked.parseInline(arg) : '';
-    const sub = body.trim() ? marked.parse(expandBlocks(body.trim())) : '';
+    const sub = body.trim() ? renderMarkdown(body.trim()) : '';
     return (
       `<div class="chapter-divider">` +
         `<span class="chapter-num"></span>` +
@@ -158,13 +173,13 @@ function renderBlock(kind, arg, body) {
   if (kind === 'cols' || kind === 'grid') {
     const style = arg ? ` style="grid-template-columns:${arg}"` : '';
     const inner = splitColumns(body)
-      .map(c => `<div class="col">${marked.parse(expandBlocks(c.trim()))}</div>`)
+      .map(c => `<div class="col">${renderMarkdown(c.trim())}</div>`)
       .join('');
     return `<div class="cols"${style}>${inner}</div>`;
   }
   if (kind === 'card') {
     const title = arg ? `<div class="card-title">${marked.parseInline(arg)}</div>` : '';
-    return `<div class="card">${title}${marked.parse(expandBlocks(body.trim()))}</div>`;
+    return `<div class="card">${title}${renderMarkdown(body.trim())}</div>`;
   }
   if (kind === 'cards') {
     const cells = splitColumns(body).map(c => c.trim()).filter(Boolean);
@@ -172,12 +187,12 @@ function renderBlock(kind, arg, body) {
       ? (/^\d+$/.test(arg) ? `repeat(${arg}, minmax(0, 1fr))` : arg)
       : `repeat(${cells.length || 2}, minmax(0, 1fr))`;
     const inner = cells
-      .map(c => `<div class="card">${marked.parse(expandBlocks(c))}</div>`)
+      .map(c => `<div class="card">${renderMarkdown(c)}</div>`)
       .join('');
     return `<div class="cards" style="grid-template-columns:${cols}">${inner}</div>`;
   }
   if (kind === 'timeline') {
-    return `<div class="timeline">${marked.parse(expandBlocks(body.trim()))}</div>`;
+    return `<div class="timeline">${renderMarkdown(body.trim())}</div>`;
   }
   if (kind === 'badges') {
     return renderBadges(body);
@@ -191,21 +206,28 @@ function renderBlock(kind, arg, body) {
   if (kind === 'tabs') {
     return renderTabs(body, arg);
   }
-  return `<div class="callout ${kind}">${marked.parse(expandBlocks(body.trim()))}</div>`;
+  return `<div class="callout ${kind}">${renderMarkdown(body.trim())}</div>`;
 }
 
-/** 按独占一行的 ||| 分栏；代码块里的 ||| 不算 */
+/** 按独占一行的 ||| 分栏；代码块和嵌套 ::: 块里的 ||| 不算 */
 function splitColumns(body) {
   const out = [];
   let cur = [];
   let fence = false;
+  let depth = 0;
 
   for (const line of body.split(/\r?\n/)) {
     if (/^\s*(```+|~~~+)/.test(line)) fence = !fence;
-    if (!fence && /^\s*\|\|\|\s*$/.test(line)) {
-      out.push(cur.join('\n'));
-      cur = [];
-      continue;
+    if (!fence) {
+      if (/^:::\s*$/.test(line)) {
+        if (depth > 0) depth--;
+      } else if (/^:::\s*\S/.test(line)) {
+        depth++;
+      } else if (depth === 0 && /^\s*\|\|\|\s*$/.test(line)) {
+        out.push(cur.join('\n'));
+        cur = [];
+        continue;
+      }
     }
     cur.push(line);
   }
@@ -322,7 +344,7 @@ function renderTabs(body, arg) {
   ).join('');
 
   const contents = panes.map((p, i) =>
-    `<div class="tab-pane${i === 0 ? ' active' : ''}" data-pane="${i}">${marked.parse(expandBlocks(p))}</div>`
+    `<div class="tab-pane${i === 0 ? ' active' : ''}" data-pane="${i}">${renderMarkdown(p)}</div>`
   ).join('');
 
   return `<div class="tabs"><div class="tab-bar">${buttons}</div><div class="tab-body">${contents}</div></div>`;
@@ -708,7 +730,7 @@ function build(md, mdUrl = null) {
     const body = document.createElement('div');
     body.className = 'slide-body';
     try {
-      body.innerHTML = marked.parse(expandBlocks(src));
+      body.innerHTML = renderMarkdown(src);
     } catch (err) {
       body.textContent = src;
     }
