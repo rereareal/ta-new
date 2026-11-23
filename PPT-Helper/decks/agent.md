@@ -1,6 +1,6 @@
-# 教学智能体 Agent 模块设计与实现
+# Agent 模块设计与实现
 
-从最小可用版本（MVP）起步，一步步搭建具备工具调用与流式输出的教学 Agent
+从最小可用版本（MVP）起步，一步步搭建具备工具调用与流式输出的教学智能体 Agent
 
 ---
 
@@ -11,42 +11,42 @@
 
 ---
 
-::: chapter 一、先想清楚：教学 Agent 是什么、MVP 该划到哪
+::: chapter 一、先想清楚教学智能体是什么、第一版做到哪
 先建立整体画面，再把第一版范围切小，保证很快能跑出一个可演示的闭环
 :::
 
 ---
 
-## 教学 Agent 和普通聊天接口差在哪？
+## 教学智能体和普通聊天接口差在哪？
 
 如果只是把学生的话转发给大模型、等它写完再原样返回，教学体验会很差。一个可用的教学智能体，核心要解决三件事：
 
 ::: cards 3
 
-### 1. 响应要快（流式输出）
+### 响应要快，靠流式输出
 讲解一道题或一个概念，模型写完往往要 10–15 秒。必须边生成边往前端推送，让界面逐字显示，后续也能按句送给语音合成。
 
 |||
 
-### 2. 回答要有据（工具调用）
+### 回答要有据，靠工具调用
 不能全靠模型记忆讲课。要允许模型按需查课程讲义、查学生进度，拿到真实资料后再组织讲解。
 
 |||
 
-### 3. 流程要可控（后端掌权）
+### 流程要可控，由后端掌权
 模型负责理解问题、生成讲解和**提出**工具调用请求；真正的权限校验、工具执行、数据落库和循环控制始终由后端掌握。
 
 :::
 
 ---
 
-## 先定义一个清晰、能很快跑通的 MVP
+## 先定义一个能很快跑通的最小版本
 
 教学 Agent 涉及大模型、工具、流式协议、数据库、检索和语音，一次性全做很容易卡在半路。更好的推进方式是**先切一个最小闭环（MVP）跑通，再一轮轮往上加能力**：
 
 ::: cols 1fr 1fr
 
-### 第一版 MVP 要做到
+### 第一版要做到
 
 1. 后端能调用 OpenAI Responses API 回答问题；
 2. 接入 **1 个只读工具**（先用内存里的几段示例讲义模拟课件检索），跑通“查资料 → 再回答”的循环；
@@ -66,50 +66,58 @@
 
 ---
 
-## 它在 `ta-backend` 里的位置与整体链路
+## 它在后端中的位置与整体链路
 
 沿用 `ta-backend` 的模块划分，在 `modules/agent/` 下放 5 个文件，整体请求这样流转：
+
+::: cols 1.45fr 0.85fr
 
 ```mermaid
 sequenceDiagram
   autonumber
   participant F as 前端 / curl
-  participant R as agent/router.py (SSE 出口)
-  participant S as agent/service.py (Agent Loop)
-  participant O as OpenAI Responses API
-  participant T as agent/tools.py (本地工具)
+  participant R as router.py
+  participant S as service.py
+  participant O as Responses API
+  participant T as tools.py
 
-  F->>R: POST /agent/runs (学生提问)
-  R->>S: 启动异步生成器 run_agent_stream()
-  S->>O: responses.create(stream=True, tools=...)
-  O-->>S: 返回 function_call（请求查课件）
+  F->>R: POST /agent/runs
+  R->>S: run_agent_stream()
+  S->>O: responses.create(stream=True)
+  O-->>S: function_call
   S-->>F: SSE: tool.started
-  S->>T: 校验参数 → 执行本地工具
-  T-->>S: 返回检索结果 (function_call_output)
+  S->>T: 校验并执行本地工具
+  T-->>S: function_call_output
   S-->>F: SSE: tool.completed
-  S->>O: 带着工具结果继续流式请求
-  O-->>S: 推送文本增量 (response.output_text.delta)
-  S-->>F: SSE: message.delta（逐字渲染）
+  S->>O: 带工具结果继续流式请求
+  O-->>S: output_text.delta
+  S-->>F: SSE: message.delta
 ```
+
+|||
 
 ```text
 modules/agent/
-  router.py    # HTTP 入口与 SSE 响应封装
-  schemas.py   # 请求体与事件数据结构
-  service.py   # Agent Loop 与上下文组装
-  prompts.py   # 教学指令模板
-  tools.py     # 工具 Schema 注册表与执行器
+  router.py   # HTTP 与 SSE 响应封装
+  schemas.py  # 请求体与事件数据结构
+  service.py  # Agent Loop 与上下文组装
+  prompts.py  # 教学指令模板
+  tools.py    # 工具注册表与执行器
 ```
+
+- **两段流中继**：后端消费上游 OpenAI 流，翻译为稳定 SSE 事件推给前端。
+
+:::
 
 ---
 
-::: chapter 二、一步步实现 MVP（Step 0 → Step 4）
+::: chapter 二、一步步实现最小版本
 拆成五小步，每完成一步就立刻验证一次，确认跑通再往后走
 :::
 
 ---
 
-## Step 0：装依赖、配密钥、准备异步客户端
+## 第一步 装依赖、配密钥、准备异步客户端
 
 在 `ta-backend/` 目录下先准备好 SDK、环境变量和目录骨架：
 
@@ -142,7 +150,7 @@ client = AsyncOpenAI()
 
 ---
 
-## Step 1：先跑通一次最普通的对话（不加流式、不加工具）
+## 第二步 先跑通一次最普通的对话，不加流式也不加工具
 
 先排除网络、密钥和模型名的问题，建好 `modules/agent/` 并写一个最简单的 `POST /agent/chat`，挂到 `main.py` 里：
 
@@ -173,19 +181,19 @@ async def chat(req: ChatRequest) -> ChatReply:
 
 |||
 
-### 立刻验收 Step 1
+### 立刻验收第二步
 
 1. 在 `main.py` 里执行 `app.include_router(agent_router)`；
 2. 启动服务：`uv run dev`；
 3. 打开 `http://127.0.0.1:3000/docs`，调用 `POST /agent/chat`，传入 `{"message": "用一句话解释什么是数据库事务"}`。
 
-能正常收到一段教学回答，说明模型链路已打通，可以进入 Step 2。
+能正常收到一段教学回答，说明模型链路已打通，可以进入下一步。
 
 :::
 
 ---
 
-## Step 2：加上第一个工具（内存版课件检索）
+## 第三步 加上第一个工具，先用内存模拟课件检索
 
 Function Calling 的本质是：**模型不会替你运行 Python 函数**，它只返回“想调哪个工具 + 参数 JSON”，真正校验和执行的是我们后端。
 
@@ -239,9 +247,9 @@ async def search_course_materials(ctx, args: SearchArgs) -> str:
 
 ---
 
-## Step 3：写通 Agent Loop，让模型“查完再答”
+## 第四步 写通多轮调用循环，让模型“查完再答”
 
-一次模型请求返回了 `function_call` 并不是结束，后端需要执行工具、把 `function_call_output` 交回模型，循环直到模型给出最终回答（或达到轮数上限）：
+::: cols 1.4fr 0.9fr
 
 ```python
 async def run_agent_once(user_text: str, ctx, max_turns: int = 5) -> str:
@@ -255,13 +263,12 @@ async def run_agent_once(user_text: str, ctx, max_turns: int = 5) -> str:
             input=pending_input,
             previous_response_id=response_id,
             tools=TOOL_SCHEMAS,
-            parallel_tool_calls=False,   # 初期关闭并行调用，先把顺序和日志跑稳
+            parallel_tool_calls=False,   # 初期关闭并行，先把日志跑稳
         )
         response_id = resp.id
-        calls = [item for item in resp.output if item.type == "function_call"]
+        calls = [i for i in resp.output if i.type == "function_call"]
         if not calls:
-            return resp.output_text      # 没有工具调用，返回最终回答
-
+            return resp.output_text      # 无工具调用，返回最终回答
         pending_input = [
             {
                 "type": "function_call_output",
@@ -273,11 +280,18 @@ async def run_agent_once(user_text: str, ctx, max_turns: int = 5) -> str:
     raise AgentTurnLimitError("工具调用轮数超限")
 ```
 
-**立刻验收 Step 3**：把 Step 1 的 `/agent/chat` 改成调用 `run_agent_once()`，在 `/docs` 里问“第 3 章有哪些隔离级别？”，观察终端打印出工具被调用，并且回复里准确引用了 `DEMO_NOTES` 的内容。
+|||
+
+### 循环机制与验收
+
+- 收到 `function_call` 后执行本地工具，把 `function_call_output` 交回模型，循环直至给出最终回答或达轮数上限。
+- **立刻验收第四步**：将 `/agent/chat` 改为调用 `run_agent_once()`，在 `/docs` 提问“第 3 章有哪些隔离级别？”，确认终端打印工具调用日志且回复引用了 `DEMO_NOTES`。
+
+:::
 
 ---
 
-## Step 4：升级为 SSE 流式输出（设计两段流与事件协议）
+## 第五步 升级为流式输出，设计两段流与事件协议
 
 工具循环跑稳后，把一次性返回改成流式。浏览器不能直连 OpenAI（会暴露密钥、也调不到本地工具），因此由后端做中继，整条流分成两段：
 
@@ -298,49 +312,35 @@ flowchart LR
 
 ---
 
-## Step 4（实现）：流式循环 + 路由封装 + 终端验收
+## 第五步 实现流式循环、路由封装与终端验收
 
-::: tabs 1. 流式循环 (service.py) | 2. SSE 路由 (router.py) | 3. 终端 & 前端验收
-
-把 Step 3 里的 `responses.create` 加上 `stream=True`，逐个消费事件并 `yield` 应用层事件：
+::: tabs 流式循环 | 流式路由 | 终端与前端验收
 
 ```python
 async def run_agent_stream(user_text: str, ctx, max_turns: int = 5):
-    pending_input: str | list[dict] = user_text
-    response_id = ctx.last_response_id
-
+    pending_input, response_id = user_text, ctx.last_response_id
     for _ in range(max_turns):
         stream = await client.responses.create(
-            model=OPENAI_MODEL,
-            instructions=build_teacher_prompt(ctx),
-            input=pending_input,
-            previous_response_id=response_id,
-            tools=TOOL_SCHEMAS,
-            parallel_tool_calls=False,
-            stream=True,
-        )
+            model=OPENAI_MODEL, instructions=build_teacher_prompt(ctx), input=pending_input,
+            previous_response_id=response_id, tools=TOOL_SCHEMAS, parallel_tool_calls=False, stream=True)
         pending_calls = []
-        async for event in stream:
-            if event.type == "response.output_text.delta":
-                yield {"event": "message.delta", "data": {"text": event.delta}}
-            elif event.type == "response.output_item.done" and event.item.type == "function_call":
-                pending_calls.append(event.item)
-            elif event.type == "response.completed":
-                response_id = event.response.id
-            elif event.type in ("response.failed", "response.incomplete", "error"):
+        async for ev in stream:
+            if ev.type == "response.output_text.delta":
+                yield {"event": "message.delta", "data": {"text": ev.delta}}
+            elif ev.type == "response.output_item.done" and ev.item.type == "function_call":
+                pending_calls.append(ev.item)
+            elif ev.type == "response.completed":
+                response_id = ev.response.id
+            elif ev.type in ("response.failed", "response.incomplete", "error"):
                 raise AgentModelError("模型请求未正常完成")
-
         if not pending_calls:
-            yield {"event": "run.completed", "data": {"run_id": ctx.run_id}}
-            return
-
+            yield {"event": "run.completed", "data": {"run_id": ctx.run_id}}; return
         pending_input = []
-        for call in pending_calls:
-            yield {"event": "tool.started", "data": {"tool": call.name}}
-            out = await safe_execute_tool(call.name, call.arguments, ctx)
-            yield {"event": "tool.completed", "data": {"tool": call.name}}
-            pending_input.append({"type": "function_call_output", "call_id": call.call_id, "output": out})
-
+        for c in pending_calls:
+            yield {"event": "tool.started", "data": {"tool": c.name}}
+            out = await safe_execute_tool(c.name, c.arguments, ctx)
+            yield {"event": "tool.completed", "data": {"tool": c.name}}
+            pending_input.append({"type": "function_call_output", "call_id": c.call_id, "output": out})
     raise AgentTurnLimitError("工具调用轮数超限")
 ```
 
@@ -361,7 +361,7 @@ async def create_run(req: RunRequest, request: Request, user: CurrentUser):
                     return
                 yield encode_sse(ev["event"], ev["data"])
         except ServiceError as exc:
-            yield encode_sse("error", {"code": exc.code.value, "detail": exc.detail})
+            yield encode_sse("error", {"code": exc.code, "detail": exc.detail})
 
     return StreamingResponse(
         event_stream(),
@@ -398,17 +398,15 @@ await fetchEventSource("/agent/runs", {
 
 :::
 
-走到这一步，Agent 的 **MVP 就彻底跑通了**。
-
 ---
 
-::: chapter 三、基于 MVP 逐步完善：走向真正的教学助教
+::: chapter 三、在最小版本上逐步完善成真正的教学助教
 MVP 跑稳之后，按四轮迭代把“能跑”逐步升级成“有据、可控、安全、带语音”
 :::
 
 ---
 
-## 迭代 1：接入真实课程检索与数据库持久化
+## 迭代一 接入真实课程检索与数据库持久化
 
 MVP 里用的是内存讲义和临时会话，第一轮完善把数据真正落到 `ta-backend` 的业务模块和数据库里：
 
@@ -428,7 +426,7 @@ MVP 里用的是内存讲义和临时会话，第一轮完善把数据真正落�
 
 ---
 
-## 迭代 2：补齐教学工具与读写权限边界
+## 迭代二 补齐教学工具与读写权限边界
 
 在第一个只读工具跑顺后，再按教学闭环逐步补齐到 5 个核心工具（工具宜少而稳，别把整库 CRUD 全扔给模型）：
 
@@ -446,7 +444,7 @@ MVP 里用的是内存讲义和临时会话，第一轮完善把数据真正落�
 
 ---
 
-## 迭代 3：可靠性、安全与低成本测试
+## 迭代三 可靠性、安全与低成本测试
 
 随着调用量上来，给循环和工具补齐容错与观测能力：
 
@@ -474,11 +472,11 @@ ok 设好最大轮数、单工具超时与断线取消
 
 ---
 
-## 迭代 4：接入语音与后续演进
+## 迭代四 接入语音与后续演进
 
 ::: cols 1.15fr 1fr
 
-### 语音放在 Agent 外围
+### 语音放在智能体外围
 
 Whisper（ASR）和 Fish Speech（TTS）属于输入输出适配，不要揉进 Agent Loop 核心代码：
 
@@ -498,9 +496,13 @@ flowchart LR
 
 ### 继续阅读其他文档
 
-- **后端整体架构与全局约定**  
+- **后端架构与开发指南**  
   [打开 `intro.md`](?src=decks/intro.md)
-- **实验室集群语音底座部署**  
+- **前端架构与开发指南**  
+  [打开 `intro-webui.md`](?src=decks/intro-webui.md)
+- **课程与资源模块设计与实现**  
+  [打开 `course-resource.md`](?src=decks/course-resource.md)
+- **语音底座部署指南**  
   [打开 `speech.md`](?src=decks/speech.md)
 - **全部幻灯片列表**  
   按 `L` 或 [返回选择页](./)

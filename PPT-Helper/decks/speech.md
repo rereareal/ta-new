@@ -1,6 +1,6 @@
-# 教学智能体语音底座部署指南
+# 语音底座部署指南
 
-在实验室 GPU 集群上，从零跑通 Fish Speech S2-Pro 与 Whisper 的 MVP，再逐步完善
+在实验室 GPU 集群上，从零跑通教学智能体语音服务（Fish Speech S2-Pro 与 Whisper）
 
 ---
 
@@ -11,13 +11,13 @@
 
 ---
 
-::: chapter 一、动手前先定范围：MVP 做什么、机器怎么选
+::: chapter 一、先定范围，再选机器
 先切清第一版要跑通的最小目标，再对照模型要求去网页上申请合适的算力与镜像
 :::
 
 ---
 
-## 整体链路与第一版 MVP 定义
+## 整体链路与第一版范围
 
 语音合成（TTS）和语音识别（ASR）都很吃显存，不直接写进 `ta-backend`，而是作为两个独立的 HTTP 服务跑在实验室 GPU 上：
 
@@ -31,7 +31,7 @@ flowchart LR
 
 ::: cols 1fr 1fr
 
-### 第一版 MVP 要做到
+### 第一版要做到
 
 1. 先部署 **Fish Speech S2-Pro**（自带 HTTP 服务，一条命令就能跑起来，新手最容易拿到正反馈）；
 2. 再部署 **Whisper**（包一层二十多行的 FastAPI），并直接用前一步生成的 `test.wav` 测通识别；
@@ -39,7 +39,7 @@ flowchart LR
 
 |||
 
-### 先不做，留到 MVP 之后完善
+### 先不做，留到后续完善
 
 - 定制老师音色（参考音频克隆）；
 - TTS 流式音频返回、与 Agent 文本流按句联动；
@@ -65,13 +65,13 @@ flowchart LR
 
 ---
 
-::: chapter 二、SSH 零基础入门：连上机器并让服务常驻
+::: chapter 二、连上机器并让服务常驻
 学会用网页给的 SSH 命令登录远程机器，以及如何用 `tmux` 防止关窗口掉线
 :::
 
 ---
 
-## 第一步：用 SSH 登录到刚申请好的 GPU 机器
+## 先登录到刚申请好的显卡机器
 
 SSH 的作用很简单：让你在自己电脑的终端里，直接操作那台远程的 Linux GPU 机器。实例创建成功后，网页会给出一条类似下面这样的登录命令：
 
@@ -99,11 +99,11 @@ df -h            # 看哪个挂载目录剩余空间大，后面放模型权重�
 
 ---
 
-## 新手够用的 4 条命令 + 用 `tmux` 让服务常驻
+## 新手够用的四条命令，以及让服务常驻后台
 
 ::: cols 1fr 1.25fr
 
-### 日常够用的 4 条目录命令
+### 日常够用的四条目录命令
 
 | 命令 | 作用 |
 | --- | --- |
@@ -114,7 +114,7 @@ df -h            # 看哪个挂载目录剩余空间大，后面放模型权重�
 
 |||
 
-### 为什么要用 `tmux`？
+### 为什么要让服务常驻后台？
 
 如果直接在 SSH 窗口里启动模型，一旦电脑合盖、断网或关掉终端窗口，里面的程序会立刻退出。用 `tmux` 建一个留在远程机器上的后台会话，关掉本机窗口服务依然在跑：
 
@@ -133,13 +133,13 @@ tmux attach -t tts   # 重新连回 tts 会话查看日志
 
 ---
 
-::: chapter 三、实现 MVP（上半段）：部署 Fish Speech S2-Pro
+::: chapter 三、部署语音合成服务
 官方自带 HTTP 接口，不用写业务代码，按步骤敲命令就能把“说”跑起来
 :::
 
 ---
 
-## Step 1：复用镜像里的 PyTorch 环境并安装依赖
+## 第一步 复用镜像里的运行环境并安装依赖
 
 网页申请的镜像里已经预装好了与 CUDA 配套的 PyTorch。与其从零建空环境重新下载几个 GB 的 PyTorch，更好的做法是**克隆镜像自带环境**：既把 Fish Speech 和后面的 Whisper 隔离开，又避免安装依赖时把 GPU 版 PyTorch 覆盖成 CPU 版。
 
@@ -165,7 +165,7 @@ pip install -c /tmp/torch-lock.txt -e .
 
 ---
 
-## Step 2：下载 S2-Pro 模型权重
+## 第二步 下载语音合成模型权重
 
 模型权重托管在 Hugging Face 上，文件体积较大，国内实验室网络一般先配好镜像站再下载：
 
@@ -188,7 +188,7 @@ hf download fishaudio/s2-pro --local-dir checkpoints/s2-pro
 
 ---
 
-## Step 3：启动官方 HTTP 服务并验收试听
+## 第三步 启动官方服务并验收试听
 
 在刚才的 `tts` 会话里，指定 **0 号卡** 启动内置 API Server（`--half` 开启半精度，更稳妥地放进单张 3090 的 24GB 显存）：
 
@@ -232,13 +232,13 @@ scp -P 端口号 用户名@主机地址:~/speech/test.wav ./
 
 ---
 
-::: chapter 四、实现 MVP（下半段）：部署 Whisper 并闭环验收
+::: chapter 四、部署语音识别服务并闭环验收
 先拿刚生成的 `test.wav` 测通识别，再包一层 FastAPI，最后从开发机联调通两个端口
 :::
 
 ---
 
-## Step 4：建独立环境，先用 `test.wav` 跑通本地识别
+## 第四步 建独立环境，先用测试音频跑通本地识别
 
 新开一个 `tmux` 会话（`tmux new -s asr`），给 Whisper 单独建一个 Conda 环境并安装 `faster-whisper`（基于 CTranslate2 的加速实现，比原版更快且省显存）：
 
@@ -266,9 +266,9 @@ print(info.language, "".join(s.text for s in segments))
 
 ---
 
-## Step 5：一键写入 `asr_server.py`，给 Whisper 包一层接口
+## 第五步 写入服务脚本，给识别模型包一层接口
 
-确认模型能识别出刚才那句话之后，在 `~/speech/asr/` 里把下面这段代码存成 `asr_server.py`（如果不熟 `vim`，直接复制下面的 `cat << 'EOF' > ...` 整块粘贴回车就能创建文件；也可以用 VS Code 的 Remote-SSH 编辑）：
+确认模型能识别出刚才那句话后，在 `~/speech/asr/` 执行下面命令创建 `asr_server.py`：
 
 ::: cols 1.35fr 1fr
 
@@ -284,22 +284,17 @@ app = FastAPI()
 model = WhisperModel("large-v3", device="cuda", compute_type="float16")
 
 @app.get("/health")
-def health():
-    return {"status": "ok"}
+def health(): return {"status": "ok"}
 
 @app.post("/transcribe")
 def transcribe(file: UploadFile = File(...)):
     suffix = Path(file.filename or "audio.wav").suffix or ".wav"
     with NamedTemporaryFile(suffix=suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp.flush()
-        segments, info = model.transcribe(tmp.name, language="zh", beam_size=5)
-        segments = list(segments)
-    return {
-        "text": "".join(s.text for s in segments).strip(),
-        "language": info.language,
-        "segments": [{"start": s.start, "end": s.end, "text": s.text} for s in segments],
-    }
+        shutil.copyfileobj(file.file, tmp); tmp.flush()
+        segs, info = model.transcribe(tmp.name, language="zh", beam_size=5)
+        segs = list(segs)
+    return {"text": "".join(s.text for s in segs).strip(), "language": info.language,
+            "segments": [{"start": s.start, "end": s.end, "text": s.text} for s in segs]}
 EOF
 ```
 
@@ -315,7 +310,7 @@ EOF
 
 ---
 
-## Step 6：放到 1 号卡启动，完成 MVP 闭环验收
+## 第六步 放到另一张显卡启动，完成闭环验收
 
 在 `asr` 会话里把 Whisper 放到 **1 号卡**（避开 0 号卡的 Fish Speech），监听 `8001` 端口，并保持 `--workers 1`（每个 worker 都会各自占一份显存）：
 
@@ -328,7 +323,7 @@ CUDA_VISIBLE_DEVICES=1 uvicorn asr_server:app --host 0.0.0.0 --port 8001 --worke
 
 ::: cols 1fr 1.15fr
 
-### 1. 远程本机闭环验收
+### 远程本机闭环验收
 
 ```bash
 curl http://127.0.0.1:8001/health
@@ -341,7 +336,7 @@ curl -X POST http://127.0.0.1:8001/transcribe \
 
 |||
 
-### 2. 开发机通过 SSH 隧道联调
+### 开发机通过端口转发联调
 
 如果实例端口只对内网开放，在**自己电脑**跑一条端口转发，把远程两个端口映射回本机：
 
@@ -358,13 +353,13 @@ ssh -p 端口号 \
 
 ---
 
-::: chapter 五、基于 MVP 逐步完善：接进后端并做好加固
+::: chapter 五、接进后端并做好加固
 MVP 跑通后，按三轮迭代把两个独立端口真正接进教学智能体项目
 :::
 
 ---
 
-## 迭代 1：在 `ta-backend` 里封装语音客户端（`modules/speech/`）
+## 迭代一 在后端中封装语音客户端
 
 不要在 Agent 循环里到处散落 `httpx.post("http://...")`，而是按项目分层在 `ta-backend` 里建一个薄薄的客户端模块，由配置统一管理地址：
 
@@ -399,7 +394,7 @@ class SpeechClient:
 
 |||
 
-### 接入 `ta-backend` 的三件事
+### 接入后端的三件事
 
 1. 在 `ta-backend` 执行 `uv add httpx`；
 2. 把 `ASR_BASE_URL` / `TTS_BASE_URL` 配进环境变量（本地联调填隧道地址 `127.0.0.1:18001` / `18080`，上线换集群内网地址）；
@@ -409,18 +404,18 @@ class SpeechClient:
 
 ---
 
-## 迭代 2 & 3：体验升级与稳定加固
+## 迭代二与三 体验升级与稳定加固
 
 ::: cards 2
 
-### 迭代 2：音色定制与低延迟播报
+### 迭代二 音色定制与低延迟播报
 
 - **固定助教音色**：准备一段 10–30 秒干净的老师朗读参考音频 + 对应字幕，通过 Fish Speech 的参考音频参数固定讲课声线，避免每次合成音色飘移。
 - **缩短开口等待**：配合 Agent 的 SSE 文本流，在后端按句号、问号断句，每攒够一句就异步请求一次 TTS（也可开启 Fish Speech 的流式音频输出），边生成边播放。
 
 |||
 
-### 迭代 3：安全、限流与运维脚本
+### 迭代三 安全、限流与运维脚本
 
 - **接口鉴权与输入限制**：Fish Speech 启动时加上 `--api-key "$FISH_INTERNAL_API_KEY"`；`asr_server.py` 校验内部请求头并限制单文件体积（例如 ≤ 20MB）。
 - **防 OOM 并发控制**：实测双服务同时推理时的显存峰值，在 `ta-backend` 用 `asyncio.Semaphore` 限制同时发往 GPU 的请求数。
@@ -430,7 +425,7 @@ class SpeechClient:
 
 ---
 
-## 常见现象排查表 & 交付清单
+## 常见现象排查表与交付清单
 
 排错按 **「显卡与磁盘 → Conda 环境与依赖 → 端口与网络」** 顺序查，一次只改一处：
 
@@ -454,6 +449,6 @@ ASR_MODEL=large-v3
 
 |||
 
-**继续阅读**：[后端架构 `intro.md`](?src=decks/intro.md) · [智能体模块 `agent.md`](?src=decks/agent.md) · [返回选择页](./)
+**继续阅读**：[后端架构与开发指南](?src=decks/intro.md) · [前端架构与开发指南](?src=decks/intro-webui.md) · [课程与资源模块设计与实现](?src=decks/course-resource.md) · [Agent 模块设计与实现](?src=decks/agent.md) · [返回选择页](./)
 
 :::

@@ -1,6 +1,6 @@
-# ta-backend 架构与开发指南
+# 后端架构与开发指南
 
-以 `auth` 模块为例，理解项目的目录结构、全局底座与模块约定
+以 `auth` 模块为例，理解教学智能体后端的目录结构、全局底座与模块约定
 
 ---
 
@@ -42,7 +42,7 @@ ta-backend/
   core/            # 运行期基础设施（所有业务模块共用）
     config.py      # 全局配置常量
     database.py    # 数据库引擎、建表与请求级会话
-    errors.py      # 统一错误码、异常基类与全局处理器
+    errors.py      # 业务异常基类、Unauthorized 与全局处理器
     security.py    # 密码哈希与 JWT 签发/校验
   modules/         # 按业务领域拆分的模块（auth 是第一个样板）
     auth/          # models / schemas / service / deps / router
@@ -53,43 +53,43 @@ ta-backend/
 
 ---
 
-::: chapter 二、全局底座：`core/` 包含什么、为什么这样设计
-先认识全项目共用的四个基础能力，再借 `auth` 看它们如何运转
+::: chapter 二、全局底座包含什么、为什么这样设计
+先认识全项目共用的四项基础能力，再借认证模块看它们如何运转
 :::
 
 ---
 
-## `core/` 里有哪些东西？
+## 全局底座里有哪些东西
 
-写任何业务模块（现在的 `auth`，以及后续的 `courses`、`agent`）都会反复用到四类基础能力。项目把它们统一收在 `core/` 里，由所有业务模块共享：
+无论是现在的认证模块，还是后续的课程、智能体模块，都会反复用到四类基础能力。项目把它们统一收在 `core/` 目录里，由所有业务模块共享：
 
 ::: cards 2
 
-### `config.py` · 全局配置
-集中存放数据库连接串、JWT 签名密钥、算法和过期时间等常量。当前是本地开发默认值，上线前统一改成从环境变量 / `.env` 读取。
+### 全局配置
+`config.py`：集中存放数据库连接串、签名密钥、算法和过期时间等设置。当前是本地开发默认值，上线前统一改成从环境变量或 `.env` 文件读取。
 
 |||
 
-### `database.py` · 数据库与会话
-负责创建 SQLAlchemy/SQLModel 引擎、在启动时建表，以及通过 `SessionDep` 为每个 HTTP 请求分配和回收数据库会话。
+### 数据库与会话
+`database.py`：负责创建数据库引擎、在启动时建表，并为每个请求分配和回收数据库会话。
 
 |||
 
-### `errors.py` · 统一错误处理
-定义全站共享的错误码 `ErrorCode`、业务异常基类 `ServiceError`、状态码映射表，以及接管异常的全局处理器。
+### 统一错误处理
+`errors.py`：定义业务异常基类 `ServiceError`、跨模块通用的 `Unauthorized`，以及接管异常的全局处理器。
 
 |||
 
-### `security.py` · 安全基础工具
-封装密码的 `scrypt` 加盐哈希与校验，以及 JWT Token 的签发与解析，让认证逻辑无需关心底层加密细节。
+### 安全基础工具
+`security.py`：封装密码的加盐哈希与校验，以及登录令牌的签发与解析，让认证逻辑无需关心底层加密细节。
 
 :::
 
 ---
 
-## 应用生命周期与数据库会话（`main.py` & `core/database.py`）
+## 应用生命周期与数据库会话
 
-数据库连接的建立、建表和释放，以及每个请求的会话生命周期，都由 `main.py` 和 `core/database.py` 统一托管：
+数据库连接的建立、建表和释放，以及每个请求的会话生命周期，都由应用入口 `main.py` 和 `core/database.py` 统一托管：
 
 ::: cols 1.15fr 1fr
 
@@ -129,7 +129,7 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 ---
 
-## 统一错误处理（`core/errors.py`）
+## 统一错误处理
 
 为了让前端处理错误足够简单、同时让业务代码与 HTTP 协议解耦，`core/errors.py` 用四个全局处理器把全站响应收敛到固定格式：
 
@@ -144,62 +144,60 @@ SessionDep = Annotated[Session, Depends(get_session)]
 | 正常返回 | 200 | 返回接口声明的 Schema |
 | 业务层 `ServiceError` | 400 / 401 | 业务错误默认 400，认证失效 401 |
 | 参数校验失败 | 400 | FastAPI 默认 422 统一转为 400 |
-| 路由与框架 HTTP 错误 | 400 / 401 / 404 / 500 | 404 仅路径不存在触发；403/405 等压成 400 |
-| 未预期异常 | 500 | 统一回 `"服务器内部错误"`，不暴露内部细节 |
+| 路由与框架错误 | 400 / 401 / 404 / 500 | 404 仅路径不存在；403/405 等压成 400 |
+| 未预期异常 | 500 | 统一回 `"服务器内部错误"`，不暴露细节 |
 
 |||
 
 ```python
-# modules/auth/service.py：业务层只描述“发生了什么业务错”
+# modules/auth/service.py：业务模块原地定义异常，无需改 core/errors.py
 class UsernameTaken(ServiceError):
-    code = ErrorCode.USERNAME_TAKEN
+    code = "USERNAME_TAKEN"
+    default_detail = "用户名已被占用"
 
-# core/errors.py：业务错误码 -> 状态码（只允许 400 / 401，未列出默认 400）
-STATUS_BY_CODE: dict[ErrorCode, int] = {
-    ErrorCode.USERNAME_TAKEN: status.HTTP_400_BAD_REQUEST,
-    ErrorCode.INVALID_CREDENTIALS: status.HTTP_400_BAD_REQUEST,
-    ErrorCode.UNAUTHORIZED: status.HTTP_401_UNAUTHORIZED,
-}
+# core/errors.py：Unauthorized 映射为 401，其余 ServiceError 默认 400
+# 导入期自动校验 code 非空、不重名且不与框架保留码冲突
 
 # main.py 调用 install_error_handlers(app) 装上四个处理器：
-# ServiceError / RequestValidationError / StarletteHTTPException / Exception
+# ServiceError / ValidationError / HTTPException / Exception
 ```
 
 :::
 
-**为什么这样设计？** 业务层只需要用 `ServiceError` 表达领域语义，不用关心 HTTP 状态码，也不用处理 `401` 附带 `WWW-Authenticate: Bearer` 这类协议头；未预期异常由最外层的 `Exception` 处理器统一兜底为 `500`，既不会把堆栈漏给前端，也让前端只需按 `code` 做分支。
+**为什么这样设计？** 业务层只需用 `ServiceError` 表达领域语义，无需关心 HTTP 状态码或 `401` 协议头；未预期异常由最外层 `Exception` 处理器兜底为 `500`，既不泄露堆栈，也让前端只需按 `code` 做分支。
 
 ---
 
-## 以 `auth` 为例：一条业务错误如何走到前端
+## 一条业务错误如何走到前端
 
-当注册请求遇到重复用户名时，异常会直接穿过路由层，由全局处理器统一翻译成 HTTP 响应：
+以认证模块的注册接口为例，看重复用户名这个错误是怎样一路传到前端的：
 
 ```mermaid
 sequenceDiagram
   autonumber
-  participant C as Client
-  participant H as core/errors.py (全局处理器)
-  participant R as modules/auth/router.py
-  participant S as modules/auth/service.py
-  participant D as SQLite
+  participant C as 客户端
+  participant R as 路由层
+  participant S as 业务层
+  participant D as 数据库
+  participant H as 全局错误处理
 
-  C->>R: POST /auth/register
-  Note over R: 入参格式不合法时，由 validation_error_handler 直接转 400
-  R->>S: create_user(session, ...)
-  S->>D: INSERT INTO user
-  D-->>S: IntegrityError (唯一索引冲突)
-  S-->>H: raise UsernameTaken("用户名已被占用")
-  H-->>C: HTTP 400 {"code": "USERNAME_TAKEN", "detail": "..."}
+  C->>R: 提交注册请求
+  Note over R: 入参不合法时，直接转为 400 响应
+  R->>S: 调用创建用户
+  S->>D: 写入用户记录
+  D-->>S: 用户名唯一约束冲突
+  S-->>H: 抛出“用户名已被占用”错误
+  H-->>C: 返回 400，错误码为 USERNAME_TAKEN
 ```
 
-新增一种业务错误时，流程很轻：在 `ErrorCode` 的业务层分组里加一个枚举、在模块里建一个 `ServiceError` 子类，再按需在 `STATUS_BY_CODE` 里登记（业务错误默认 400，需要返回 401 时显式映射即可），四个全局处理器和路由本身都无需改动。
+- **路由层不写异常处理**：错误直接穿过路由层，由全局处理器统一翻译成响应，前端只需按错误码做分支。
+- **新增一种业务错误只需一步**：在当前模块的 `service.py` 继承 `ServiceError` 并声明 `code`（可选 `default_detail`），全局处理器默认返回 400；认证失效直接复用 `core/errors.py` 的 `Unauthorized`（返回 401）。
 
 ---
 
-## 安全工具与依赖注入（`core/security.py` & `Depends`）
+## 安全工具与依赖注入
 
-很多接口都需要做相同的前置工作——比如拿数据库会话、或者验证用户是否登录。项目把底层算法放在 `core/security.py`，把请求级前置校验抽成 FastAPI 依赖项：
+很多接口都需要做相同的前置工作，比如获取数据库会话、验证用户是否登录。项目把底层算法放在 `core/security.py`，把请求级的前置校验抽成可复用的依赖项：
 
 ::: cols 1.15fr 1fr
 
@@ -210,7 +208,7 @@ def get_current_user(
     authorization: Annotated[str | None, Header()] = None,
 ) -> User:
     if not authorization or not authorization.lower().startswith("bearer "):
-        raise service.Unauthorized("未登录或 token 无效")
+        raise Unauthorized()
     token = authorization.split(" ", 1)[1]
     return service.authenticate_token(session, token)
 ```
@@ -236,7 +234,7 @@ def read_me(
 
 ---
 
-::: chapter 三、业务模块怎么组织：以 `auth` 为样板
+::: chapter 三、以认证模块为样板看业务模块怎么组织
 理清模块间的依赖方向，以及一个标准业务模块内部的分工
 :::
 
@@ -244,32 +242,25 @@ def read_me(
 
 ## 模块间的依赖方向
 
+::: cols 1fr 1.1fr
+
 ```mermaid
 flowchart LR
-  subgraph M ["modules/auth/（以及未来 courses / agent）"]
-    F1["models.py"]
-    F2["schemas.py"]
-    F3["service.py"]
-    F4["deps.py"]
-    F5["router.py"]
-  end
-  subgraph CORE ["core/ 基础设施"]
-    C1["config"]
-    C2["database"]
-    C3["errors"]
-    C4["security"]
-  end
-  M --> CORE
+  A["业务模块<br/>认证、课程、智能体"] --> B["全局底座<br/>配置、数据库、错误处理、安全"]
 ```
 
-- **单向依赖**：业务模块（`modules/*`）可以依赖 `core/*`，反过来 `core/*` 保持业务无关，方便底座复用和独立测试。
-- **模块间通过公开 `service` 协作**：例如未来 `agent` 需要检索课程资料时，应调用 `courses.service` 提供的函数，而不是直接操作 `courses` 的数据库表模型。
+|||
+
+- **单向依赖**：业务模块可以依赖全局底座，反过来底座不能知道任何业务，这样底座才方便复用和独立测试。
+- **模块之间只通过业务层协作**：例如智能体模块需要检索课程资料时，应调用课程模块对外提供的业务函数，而不是直接读写课程的数据表。
+
+:::
 
 ---
 
-## 模块内部的 5 文件职责划分
+## 模块内部的五个文件各管什么
 
-以 `modules/auth/` 为样板，把一个业务模块拆成 5 个文件，目的是将“数据存储、接口格式、业务规则、HTTP 协议”四类关注点各自隔离开：
+以认证模块为样板，一个业务模块拆成五个文件，目的是把数据存储、接口格式、业务规则和请求协议这四类关注点各自隔离开：
 
 | 文件 | 抽象职责 | 负责什么 | 职责边界 |
 | --- | --- | --- | --- |
@@ -285,7 +276,7 @@ flowchart LR
 
 以 `auth` 里的精简代码为例，看两处最核心的职责拆分：
 
-::: tabs 存储模型 vs 接口契约 (models / schemas) | 业务逻辑 vs HTTP 适配 (service / router)
+::: tabs 数据存储与接口契约 | 业务逻辑与接口适配
 
 把数据库表模型和接口出参分开定义，可以按读写场景独立校验，也能天然防止 `password_hash` 这类内部存储字段透传给前端：
 
@@ -320,7 +311,7 @@ def create_user(session: Session, username: str, password: str) -> User:
         session.commit()
     except IntegrityError:
         session.rollback()
-        raise UsernameTaken("用户名已被占用") from None
+        raise UsernameTaken() from None
     session.refresh(user)
     return user
 
@@ -345,33 +336,33 @@ def register(user: UserCreate, session: SessionDep) -> UserPublic:
 2. **定义接口契约（`schemas.py`）**：明确每个接口接收什么入参、对外返回哪些字段。
 3. **实现核心逻辑（`service.py`）**：独立于 HTTP 协议编写业务函数，用 `ServiceError` 子类表达业务失败。
 4. **封装依赖与路由（`deps.py` & `router.py`）**：复用 `SessionDep` 与 `get_current_user`，用薄路由把能力暴露成 REST 接口。
-5. **接入全局骨架**：在 `core/database.py` 注册表模型、在 `core/errors.py` 补充错误码映射、在 `main.py` 挂载路由。
+5. **接入全局骨架**：在 `core/database.py` 注册表模型、在 `main.py` 挂载路由。
 :::
 
 ---
 
-::: chapter 四、新模块 Checklist 与后续阅读
+::: chapter 四、新模块自查清单与后续阅读
 开工时对照这份清单，看完架构再进入具体功能文档
 :::
 
 ---
 
-## 新增模块 Checklist
+## 新增模块自查清单
 
 ::: cards 2
 
-### 1. 模块内部（`modules/<name>/`）
+### 模块内部
 
 - [ ] `models.py`：定义 `SQLModel` 表，并在 `core/database.py` 的 `init_db()` 中导入
 - [ ] `schemas.py`：拆分入参和出参模型，隔离内部存储字段
-- [ ] `service.py`：编写业务函数与 `ServiceError` 子类
+- [ ] `service.py`：编写业务函数与 `ServiceError` 子类（原地声明 `code` 与默认文案）
 - [ ] `router.py`：声明 `APIRouter(prefix="/<name>")`，保持路由简洁
 
 |||
 
-### 2. 接入全局与验证
+### 接入全局与验证
 
-- [ ] `core/errors.py`：在 `ErrorCode` 补充业务错误码，并在 `STATUS_BY_CODE` 中登记（业务层只出 400 / 401）
+- [ ] 业务错误全部继承 `ServiceError`（默认 400），认证失效复用 `core/errors.py` 的 `Unauthorized`（401）
 - [ ] 需要登录态的接口通过 `Depends(get_current_user)` 复用鉴权
 - [ ] `main.py` 中执行 `app.include_router(...)` 挂载路由
 - [ ] 用 `uv run dev` 在 `/docs` 验证接口，再运行 `uv run ruff check .`
@@ -382,21 +373,28 @@ def register(user: UserCreate, session: SessionDep) -> UserPublic:
 
 ---
 
-## 继续阅读：其他模块文档
+## 继续阅读其他模块文档
 
-熟悉 `ta-backend` 的全局约定后，可直接跳转到对应模块的设计与部署指南：
+熟悉后端的全局约定后，可直接跳转到对应模块的设计与部署指南：
 
-::: cards 2
+::: cards 3
 
-### 教学智能体 Agent 模块
-OpenAI Responses API 流式输出、工具框架、Agent Loop 与教学闭环设计。
+### 课程与资源模块设计与实现
+多格式资料解析（`resource`）与渐进式披露知识表（`course`）的 MVP 逐步构建。
+
+→ [打开 `course-resource.md`](?src=decks/course-resource.md)
+
+|||
+
+### 智能体模块设计与实现
+流式输出、工具框架、多轮工具调用循环与教学闭环设计。
 
 → [打开 `agent.md`](?src=decks/agent.md)
 
 |||
 
-### 实验室集群语音底座部署
-在 GPU 集群上部署 Whisper（ASR）与 Fish Speech（TTS），含裸机与 Slurm 方案。
+### 语音底座部署指南
+在 GPU 集群上部署 Whisper（ASR）与 Fish Speech（TTS），从零跑通 MVP 到接入后端。
 
 → [打开 `speech.md`](?src=decks/speech.md)
 
