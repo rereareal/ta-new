@@ -68,44 +68,45 @@
 
 ## 它在后端中的位置与整体链路
 
-沿用 `ta-backend` 的模块划分，在 `modules/agent/` 下放 5 个文件，整体请求这样流转：
+收到一个学生问题后，**模型只负责思考和提出“要查什么资料”，真正查讲义、控流程和往前端推字都由后端完成**：
 
-::: cols 1.45fr 0.85fr
+::: tabs 一次提问的完整流程 | 模块目录结构
 
 ```mermaid
 sequenceDiagram
   autonumber
-  participant F as 前端 / curl
-  participant R as router.py
-  participant S as service.py
-  participant O as Responses API
-  participant T as tools.py
+  participant F as 前端
+  participant B as Agent 后端
+  participant M as 大模型
+  participant T as 本地工具
 
-  F->>R: POST /agent/runs
-  R->>S: run_agent_stream()
-  S->>O: responses.create(stream=True)
-  O-->>S: function_call
-  S-->>F: SSE: tool.started
-  S->>T: 校验并执行本地工具
-  T-->>S: function_call_output
-  S-->>F: SSE: tool.completed
-  S->>O: 带工具结果继续流式请求
-  O-->>S: output_text.delta
-  S-->>F: SSE: message.delta
+  F->>B: 发送学生问题
+  B->>M: 带上问题和工具清单
+  M-->>B: 申请调用“查讲义”工具
+  B->>T: 校验参数并查本地讲义
+  T-->>B: 返回命中的讲义原文
+  B->>M: 把讲义结果交回模型
+  M-->>B: 逐字流式生成讲解
+  B-->>F: 通过 SSE 实时推给前端
 ```
+
+- 后端在中间做“**两段流中继**”：对上消费大模型流，对下转成项目自己的 SSE 事件，同时把工具执行过程（如“正在查阅课件…”）实时通知前端。
 
 |||
 
+沿用 `ta-backend` 的模块划分，在 `modules/agent/` 下按职责拆成 5 个文件：
+
 ```text
 modules/agent/
-  router.py   # HTTP 与 SSE 响应封装
+  router.py   # HTTP 入口与 SSE 流式响应封装
   schemas.py  # 请求体与事件数据结构
-  service.py  # Agent Loop 与上下文组装
-  prompts.py  # 教学指令模板
-  tools.py    # 工具注册表与执行器
+  service.py  # Agent 循环：与大模型对话、调度工具、转发流
+  prompts.py  # 助教角色与教学引导提示词
+  tools.py    # 本地工具注册表与执行入口
 ```
 
-- **两段流中继**：后端消费上游 OpenAI 流，翻译为稳定 SSE 事件推给前端。
+- **路由层极薄**：`router.py` 只负责鉴权、收参和返回流，不写模型循环。
+- **工具层独立**：`tools.py` 统一管理提供给模型的工具定义与执行，便于单独测试。
 
 :::
 
@@ -119,42 +120,49 @@ modules/agent/
 
 ## 第一步 装依赖、配密钥、准备异步客户端
 
-在 `ta-backend/` 目录下先准备好 SDK、环境变量和目录骨架：
+沿用 `ta-backend` 的 `pydantic-settings` 配置体系，通过 `.env` 注入密钥和模型名：
 
-::: cols 1.1fr 1fr
+::: cols 1.15fr 1fr
 
 ```bash
 cd ta-backend
 uv add openai
+```
 
-# 密钥通过环境变量注入，不要写死在代码里
-export OPENAI_API_KEY="替换为你的 API Key"
-export OPENAI_MODEL="gpt-4.1"
+```ini
+# ta-backend/.env（不要提交到仓库，同步在 .env.example 留模板）
+OPENAI_API_KEY=替换为你的 API Key
+OPENAI_MODEL=gpt-4.1
 ```
 
 ```python
-# 在应用启动时（main.py 的 lifespan）创建并复用，关闭时释放
-from openai import AsyncOpenAI
-
-client = AsyncOpenAI()
+# core/config.py（Settings 追加字段）
+openai_api_key: str
+openai_model: str = "gpt-4.1"
 ```
 
 |||
 
-### 两个小说明
+```python
+# 在应用启动时（main.py 的 lifespan）创建并复用，关闭时释放
+from openai import AsyncOpenAI
+from core.config import settings
 
-- **为什么用 `AsyncOpenAI` 而不是 `OpenAI`？** FastAPI 运行在单线程异步事件循环上，用同步客户端等模型吐字会卡住其他所有用户的请求。
-- **为什么放进 `lifespan`？** 连接池可以跨请求复用，不用每个请求进来都重新建客户端。
+client = AsyncOpenAI(api_key=settings.openai_api_key)
+```
+
+- **为什么用 `AsyncOpenAI` 而不是 `OpenAI`？** FastAPI 运行在单线程异步事件循环上，用同步客户端等模型吐字会卡住其他请求。
+- **为什么放进 `lifespan`？** 连接池可跨请求复用，避免每次请求重复建连。
 
 :::
 
 ---
 
-## 第二步 先跑通一次最普通的对话，不加流式也不加工具
+## 第二步 先跑通一次最普通的对话
 
 先排除网络、密钥和模型名的问题，建好 `modules/agent/` 并写一个最简单的 `POST /agent/chat`，挂到 `main.py` 里：
 
-::: cols 1.25fr 1fr
+::: tabs schemas.py & router.py | service.py | 立刻验收第二步
 
 ```python
 # modules/agent/schemas.py
@@ -163,25 +171,30 @@ class ChatRequest(BaseModel):
 
 class ChatReply(BaseModel):
     reply: str
+```
 
-# modules/agent/service.py
-async def chat_once(message: str) -> str:
-    resp = await client.responses.create(
-        model=OPENAI_MODEL,
-        instructions="你是一名循序渐进的计算机课程助教，优先引导学生思考。",
-        input=message,
-    )
-    return resp.output_text
-
+```python
 # modules/agent/router.py
 @router.post("/chat")
 async def chat(req: ChatRequest) -> ChatReply:
-    return ChatReply(reply=await service.chat_once(req.message))
+    reply = await service.chat_once(req.message)
+    return ChatReply(reply=reply)
 ```
 
 |||
 
-### 立刻验收第二步
+```python
+# modules/agent/service.py
+async def chat_once(message: str) -> str:
+    resp = await client.responses.create(
+        model=settings.openai_model,
+        instructions="你是计算机课程助教，优先引导学生思考。",
+        input=message,
+    )
+    return resp.output_text
+```
+
+|||
 
 1. 在 `main.py` 里执行 `app.include_router(agent_router)`；
 2. 启动服务：`uv run dev`；
@@ -195,14 +208,13 @@ async def chat(req: ChatRequest) -> ChatReply:
 
 ## 第三步 加上第一个工具，先用内存模拟课件检索
 
-Function Calling 的本质是：**模型不会替你运行 Python 函数**，它只返回“想调哪个工具 + 参数 JSON”，真正校验和执行的是我们后端。
+Function Calling 的本质是：**模型不会替你运行 Python 函数**，它只返回“想调哪个工具 + 参数 JSON”，真正校验和执行的是我们后端。下面两栏均写在同一个文件 `modules/agent/tools.py` 中：
 
-MVP 先不连数据库，用内存里的几条示例讲义在 `modules/agent/tools.py` 里注册第一个工具：
+::: cols 1.2fr 1fr
 
-::: cols 1.25fr 1fr
+### 1. 注册表与执行入口（`tools.py` 上半部分）
 
 ```python
-# modules/agent/tools.py
 TOOL_REGISTRY: dict[str, tuple[type[BaseModel], Callable]] = {}
 TOOL_SCHEMAS: list[dict] = []
 
@@ -212,17 +224,21 @@ def register_tool(args_model: type[BaseModel]):
         schema["additionalProperties"] = False
         TOOL_REGISTRY[func.__name__] = (args_model, func)
         TOOL_SCHEMAS.append({
-            "type": "function",
-            "name": func.__name__,
+            "type": "function", "name": func.__name__,
             "description": inspect.getdoc(func) or "",
-            "parameters": schema,
-            "strict": True,
+            "parameters": schema, "strict": True,
         })
         return func
     return decorator
+
+async def execute_tool(name: str, raw_args: str, ctx) -> str:
+    args_model, func = TOOL_REGISTRY[name]
+    return await func(ctx, args_model.model_validate_json(raw_args))
 ```
 
 |||
+
+### 2. 注册第一个只读工具（`tools.py` 下半部分）
 
 ```python
 # MVP 示例讲义（后续迭代替换成查数据库）
@@ -243,22 +259,23 @@ async def search_course_materials(ctx, args: SearchArgs) -> str:
 
 :::
 
-再配一个统一的 `safe_execute_tool(name, raw_args, ctx)`：查注册表 → 用 `args_model.model_validate_json(raw_args)` 校验参数 → 调用函数并把结果转成字符串返回。
-
 ---
 
 ## 第四步 写通多轮调用循环，让模型“查完再答”
 
+在 `modules/agent/service.py` 新增 `run_agent_once()`，把“调用模型 → 执行工具 → 回传结果”串成循环：
+
 ::: cols 1.4fr 0.9fr
 
 ```python
+# modules/agent/service.py
 async def run_agent_once(user_text: str, ctx, max_turns: int = 5) -> str:
     pending_input: str | list[dict] = user_text
     response_id: str | None = None
 
     for _ in range(max_turns):
         resp = await client.responses.create(
-            model=OPENAI_MODEL,
+            model=settings.openai_model,
             instructions=TEACHER_PROMPT,
             input=pending_input,
             previous_response_id=response_id,
@@ -273,7 +290,7 @@ async def run_agent_once(user_text: str, ctx, max_turns: int = 5) -> str:
             {
                 "type": "function_call_output",
                 "call_id": c.call_id,
-                "output": await safe_execute_tool(c.name, c.arguments, ctx),
+                "output": await execute_tool(c.name, c.arguments, ctx),
             }
             for c in calls
         ]
@@ -314,14 +331,15 @@ flowchart LR
 
 ## 第五步 实现流式循环、路由封装与终端验收
 
-::: tabs 流式循环 | 流式路由 | 终端与前端验收
+::: tabs 流式循环（service.py） | 流式路由（router.py） | 终端与前端验收
 
 ```python
+# modules/agent/service.py
 async def run_agent_stream(user_text: str, ctx, max_turns: int = 5):
     pending_input, response_id = user_text, ctx.last_response_id
     for _ in range(max_turns):
         stream = await client.responses.create(
-            model=OPENAI_MODEL, instructions=build_teacher_prompt(ctx), input=pending_input,
+            model=settings.openai_model, instructions=build_teacher_prompt(ctx), input=pending_input,
             previous_response_id=response_id, tools=TOOL_SCHEMAS, parallel_tool_calls=False, stream=True)
         pending_calls = []
         async for ev in stream:
@@ -338,7 +356,7 @@ async def run_agent_stream(user_text: str, ctx, max_turns: int = 5):
         pending_input = []
         for c in pending_calls:
             yield {"event": "tool.started", "data": {"tool": c.name}}
-            out = await safe_execute_tool(c.name, c.arguments, ctx)
+            out = await execute_tool(c.name, c.arguments, ctx)
             yield {"event": "tool.completed", "data": {"tool": c.name}}
             pending_input.append({"type": "function_call_output", "call_id": c.call_id, "output": out})
     raise AgentTurnLimitError("工具调用轮数超限")
@@ -349,6 +367,7 @@ async def run_agent_stream(user_text: str, ctx, max_turns: int = 5):
 每条 SSE 帧由 `event:`、`data:` 和一个空行组成；响应头加上 `X-Accel-Buffering: no` 防止 Nginx 攒包：
 
 ```python
+# modules/agent/router.py
 def encode_sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -452,7 +471,7 @@ MVP 里用的是内存讲义和临时会话，第一轮完善把数据真正落�
 
 ### 容错与可观测性
 
-- **工具超时降级**：在 `safe_execute_tool()` 里包上 `asyncio.timeout(10)` 与异常捕获。检索超时或报错时，把 `"工具暂时不可用，请基于已有信息引导学生"` 作为 `output` 喂回模型，避免把整条 SSE 流直接中断。
+- **工具超时降级**：在迭代期把 MVP 的 `execute_tool()` 升级为带 `asyncio.timeout(10)` 与异常捕获的包装层。检索超时或报错时，把 `"工具暂时不可用，请基于已有信息引导学生"` 作为 `output` 喂回模型，避免把整条 SSE 流直接中断。
 - **运行留痕**：每次 Run 记录 `run_id`、`user_id`、调用了哪些工具、耗时和 Token 用量，方便复盘排错。
 - **低成本测试**：工具单测和 Agent Loop（无工具 / 多轮工具 / 超轮数 / 断线）用 Mock 响应跑，只留少量集成测试调真实 API。
 
