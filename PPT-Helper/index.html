@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Slides</title>
 
+<script>
+try {
+  if (localStorage.getItem('slides-theme') === 'dark') {
+    document.documentElement.dataset.theme = 'dark';
+  }
+} catch {}
+</script>
+
 <link rel="stylesheet" href="vendor/highlight-github.css">
 <link rel="stylesheet" href="vendor/katex/katex.min.css">
 <link rel="stylesheet" href="slides.css">
@@ -27,10 +35,13 @@
 
 <div id="hud"><span id="pageno"></span></div>
 
-<div id="hint">← → / 滚轮 翻页　·　T 目录　·　F 全屏　·　O 概览　·　M 拉伸　·　L 列表</div>
+<div id="hint">← → / 滚轮 翻页　·　T 目录　·　F 全屏　·　O 概览　·　M 拉伸　·　D 深色　·　L 列表</div>
 
-<button id="toc-toggle" type="button" title="目录（T）">目录</button>
-<button id="fit-toggle" type="button" title="切换画面填充方式（M）">等比</button>
+<div id="controls">
+  <button id="theme-toggle" type="button" title="切换深色 / 浅色模式（D）">深色</button>
+  <button id="toc-toggle" type="button" title="目录（T）">目录</button>
+  <button id="fit-toggle" type="button" title="切换画面填充方式（M）">等比</button>
+</div>
 
 <div id="toc-panel" hidden>
   <div class="toc-card" role="dialog" aria-modal="true" aria-label="目录">

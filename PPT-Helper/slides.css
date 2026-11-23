@@ -895,11 +895,18 @@ pre.wrap code {
   z-index: 60;
 }
 
-/* 填充方式切换 */
-#fit-toggle,
-#toc-toggle {
+/* 底部右侧控制按钮（深色 / 目录 / 填充方式） */
+#controls {
   position: fixed;
+  right: 78px;
   bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 60;
+}
+
+#controls button {
   padding: 5px 11px;
   font: 500 12px/1 var(--sans);
   color: #8b919c;
@@ -908,15 +915,13 @@ pre.wrap code {
   border-radius: 999px;
   cursor: pointer;
   user-select: none;
-  z-index: 60;
-  transition: color .15s ease, border-color .15s ease;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
 }
 
-#fit-toggle { right: 78px; }
-#toc-toggle { right: 140px; }
+#controls button:hover { color: #191970; border-color: #cbc6e6; }
 
-#fit-toggle:hover,
-#toc-toggle:hover { color: #191970; border-color: #cbc6e6; }
+body.is-picker #controls,
+body.overview #controls { right: 26px; }
 
 body.overview #fit-toggle,
 body.overview #toc-toggle { display: none; }
@@ -1098,3 +1103,305 @@ body.overview .slide::after {
 #error[hidden] { display: none; }
 #error h2 { font-size: 20px; margin: 0; }
 #error p { font-size: 14px; color: var(--soft); margin: .2em 0; max-width: 40em; }
+
+/* ==========================================================================
+   深色模式（data-theme="dark"，快捷键 D）
+   低眩光夜读配色：深炭灰底 + 柔和蓝紫标题栏，保护夜间审阅时的视觉舒适度
+   ========================================================================== */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --ink: #e6eaf2;
+  --text: #c3cbd9;
+  --soft: #8e99ad;
+  --faint: #68748a;
+  --line: #252c3b;
+  --line-soft: #1d2330;
+  --accent: #a78bfa;
+  --violet: #5865d6;
+
+  --chart-1: #8b5cf6;
+  --chart-2: #a78bfa;
+  --chart-3: #6366f1;
+  --chart-4: #c4b5fd;
+  --chart-5: #4f46e5;
+  --chart-6: #7c3aed;
+}
+
+:root[data-theme="dark"],
+:root[data-theme="dark"] body {
+  background: #0b0e14;
+}
+
+:root[data-theme="dark"] #deck,
+:root[data-theme="dark"] #picker,
+:root[data-theme="dark"] #error {
+  background: #11151d;
+}
+
+:root[data-theme="dark"] #deck::after {
+  border-color: rgba(255, 255, 255, .1);
+  border-bottom-color: var(--violet);
+}
+
+:root[data-theme="dark"] .slide-head {
+  background: #1c2142;
+  color: #eef2ff;
+}
+
+:root[data-theme="dark"] .slide-head::after {
+  background: rgba(199, 210, 254, .38);
+}
+
+:root[data-theme="dark"] .head-chapter {
+  color: rgba(224, 231, 255, .58);
+}
+
+:root[data-theme="dark"] .head-num {
+  color: rgba(224, 231, 255, .64);
+}
+
+:root[data-theme="dark"] h3 { color: #dce2ee; }
+:root[data-theme="dark"] a { border-bottom-color: rgba(167, 139, 250, .38); }
+:root[data-theme="dark"] blockquote { border-left-color: #343d52; }
+:root[data-theme="dark"] th { border-bottom-color: #343d52; }
+
+/* 代码块与行内代码 */
+:root[data-theme="dark"] code {
+  background: #1c2230;
+  color: #e2e8f0;
+}
+
+:root[data-theme="dark"] pre {
+  background: #151a24;
+  border-color: #242c3d;
+}
+
+:root[data-theme="dark"] pre code {
+  background: none;
+  color: #d4dce8;
+}
+
+/* Highlight.js 深色语法高亮（覆盖 highlight-github.css） */
+:root[data-theme="dark"] .hljs { color: #d4dce8; background: transparent; }
+:root[data-theme="dark"] .hljs-doctag,
+:root[data-theme="dark"] .hljs-keyword,
+:root[data-theme="dark"] .hljs-meta .hljs-keyword,
+:root[data-theme="dark"] .hljs-template-tag,
+:root[data-theme="dark"] .hljs-template-variable,
+:root[data-theme="dark"] .hljs-type,
+:root[data-theme="dark"] .hljs-variable.language_ { color: #ff7b72; }
+:root[data-theme="dark"] .hljs-title,
+:root[data-theme="dark"] .hljs-title.class_,
+:root[data-theme="dark"] .hljs-title.class_.inherited__,
+:root[data-theme="dark"] .hljs-title.function_ { color: #d2a8ff; }
+:root[data-theme="dark"] .hljs-attr,
+:root[data-theme="dark"] .hljs-attribute,
+:root[data-theme="dark"] .hljs-literal,
+:root[data-theme="dark"] .hljs-meta,
+:root[data-theme="dark"] .hljs-number,
+:root[data-theme="dark"] .hljs-operator,
+:root[data-theme="dark"] .hljs-selector-attr,
+:root[data-theme="dark"] .hljs-selector-class,
+:root[data-theme="dark"] .hljs-selector-id,
+:root[data-theme="dark"] .hljs-variable { color: #79c0ff; }
+:root[data-theme="dark"] .hljs-meta .hljs-string,
+:root[data-theme="dark"] .hljs-regexp,
+:root[data-theme="dark"] .hljs-string { color: #a5d6ff; }
+:root[data-theme="dark"] .hljs-built_in,
+:root[data-theme="dark"] .hljs-symbol { color: #ffa657; }
+:root[data-theme="dark"] .hljs-code,
+:root[data-theme="dark"] .hljs-comment,
+:root[data-theme="dark"] .hljs-formula { color: #7d8799; }
+:root[data-theme="dark"] .hljs-name,
+:root[data-theme="dark"] .hljs-quote,
+:root[data-theme="dark"] .hljs-selector-pseudo,
+:root[data-theme="dark"] .hljs-selector-tag { color: #7ee787; }
+:root[data-theme="dark"] .hljs-subst { color: #d4dce8; }
+:root[data-theme="dark"] .hljs-section { color: #79c0ff; }
+:root[data-theme="dark"] .hljs-bullet { color: #f2cc60; }
+:root[data-theme="dark"] .hljs-emphasis,
+:root[data-theme="dark"] .hljs-strong { color: #e6eaf2; }
+:root[data-theme="dark"] .hljs-addition { color: #aff5b4; background-color: rgba(46, 160, 67, .22); }
+:root[data-theme="dark"] .hljs-deletion { color: #ffdcd7; background-color: rgba(248, 81, 73, .22); }
+
+:root[data-theme="dark"] pre code.language-markdown .hljs-section,
+:root[data-theme="dark"] pre code.language-markdown .hljs-strong { color: #e6eaf2; }
+:root[data-theme="dark"] pre code.language-markdown .hljs-bullet,
+:root[data-theme="dark"] pre code.language-markdown .hljs-code { color: #8e99ad; }
+
+/* 提示框、卡片、标签、时间线、图表 */
+:root[data-theme="dark"] .callout { border-left-color: #4b5568; background: #161b26; }
+:root[data-theme="dark"] .callout.note { border-left-color: #64748b; background: #161b26; }
+:root[data-theme="dark"] .callout.tip  { border-left-color: #34d399; background: #11221e; }
+:root[data-theme="dark"] .callout.warn { border-left-color: #f59e0b; background: #231c12; }
+
+:root[data-theme="dark"] .card {
+  background: #161b26;
+  border-color: #272f42;
+}
+
+:root[data-theme="dark"] .badge.ok   { background: rgba(16, 185, 129, .16); color: #6ee7b7; }
+:root[data-theme="dark"] .badge.info { background: rgba(139, 92, 246, .20); color: #c4b5fd; }
+:root[data-theme="dark"] .badge.warn { background: rgba(245, 158, 11, .16); color: #fcd34d; }
+:root[data-theme="dark"] .badge.bad  { background: rgba(239, 68, 68, .18);  color: #fca5a5; }
+
+:root[data-theme="dark"] .timeline::before { border-left-color: #2d344a; }
+:root[data-theme="dark"] .timeline li::before { background: #11151d; }
+
+:root[data-theme="dark"] .bar-track { background: #1d2333; }
+:root[data-theme="dark"] .pie-ring::after { background: #11151d; }
+
+/* Mermaid 图表（流程图 + 时序图） */
+:root[data-theme="dark"] .diagram svg .node rect,
+:root[data-theme="dark"] .diagram svg .node .label-container,
+:root[data-theme="dark"] .diagram svg .node polygon,
+:root[data-theme="dark"] .diagram svg .node circle,
+:root[data-theme="dark"] .diagram svg .node ellipse,
+:root[data-theme="dark"] .diagram svg .node path {
+  fill: #192030 !important;
+  stroke: #38435e !important;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .35));
+}
+
+:root[data-theme="dark"] .diagram svg .node .nodeLabel,
+:root[data-theme="dark"] .diagram svg .node .nodeLabel p,
+:root[data-theme="dark"] .diagram svg .node text {
+  color: #e2e8f0 !important;
+  fill: #e2e8f0 !important;
+}
+
+:root[data-theme="dark"] .diagram svg .flowchart-link {
+  stroke: #6f7a96 !important;
+}
+
+:root[data-theme="dark"] .diagram svg .arrowMarkerPath {
+  fill: #6f7a96 !important;
+  stroke: #6f7a96 !important;
+}
+
+:root[data-theme="dark"] .diagram svg .edgeLabel rect,
+:root[data-theme="dark"] .diagram svg .edgeLabel .label rect {
+  fill: #11151d !important;
+}
+
+:root[data-theme="dark"] .diagram svg .edgeLabel .labelBkg,
+:root[data-theme="dark"] .diagram svg .edgeLabel span.edgeLabel {
+  background-color: #11151d !important;
+  color: #a4b0c6 !important;
+}
+
+:root[data-theme="dark"] .diagram svg .edgeLabel .label span,
+:root[data-theme="dark"] .diagram svg .edgeLabel p {
+  color: #a4b0c6 !important;
+  background: transparent !important;
+}
+
+:root[data-theme="dark"] .diagram svg .cluster rect {
+  fill: #151a26 !important;
+  stroke: #2c354c !important;
+}
+
+:root[data-theme="dark"] .diagram svg .cluster-label span,
+:root[data-theme="dark"] .diagram svg .cluster-label p {
+  color: #b8c2d6 !important;
+}
+
+/* Mermaid 时序图 */
+:root[data-theme="dark"] .diagram svg rect.actor,
+:root[data-theme="dark"] .diagram svg .labelBox {
+  fill: #192030 !important;
+  stroke: #3b4664 !important;
+}
+
+:root[data-theme="dark"] .diagram svg text.actor,
+:root[data-theme="dark"] .diagram svg text.actor tspan,
+:root[data-theme="dark"] .diagram svg .labelText,
+:root[data-theme="dark"] .diagram svg .loopText,
+:root[data-theme="dark"] .diagram svg .loopText tspan {
+  fill: #e2e8f0 !important;
+}
+
+:root[data-theme="dark"] .diagram svg line.actor-line {
+  stroke: #343f59 !important;
+}
+
+:root[data-theme="dark"] .diagram svg .messageLine0,
+:root[data-theme="dark"] .diagram svg .messageLine1,
+:root[data-theme="dark"] .diagram svg .loopLine {
+  stroke: #7c87a6 !important;
+}
+
+:root[data-theme="dark"] .diagram svg .messageText {
+  fill: #cbd5e1 !important;
+  stroke: none !important;
+}
+
+:root[data-theme="dark"] .diagram svg #arrowhead path,
+:root[data-theme="dark"] .diagram svg #crosshead path,
+:root[data-theme="dark"] .diagram svg #filled-head path,
+:root[data-theme="dark"] .diagram svg #sequencenumber {
+  fill: #7c87a6 !important;
+  stroke: #7c87a6 !important;
+}
+
+:root[data-theme="dark"] .diagram svg .sequenceNumber {
+  fill: #0b0e14 !important;
+}
+
+:root[data-theme="dark"] .diagram svg rect.note {
+  fill: #1b2234 !important;
+  stroke: #3c4766 !important;
+}
+
+:root[data-theme="dark"] .diagram svg text.noteText,
+:root[data-theme="dark"] .diagram svg text.noteText tspan {
+  fill: #cbd5e1 !important;
+}
+
+:root[data-theme="dark"] pre.diagram-error {
+  border-color: #7f3d36;
+  background: #251618;
+}
+
+/* 章节页、目录、目录弹窗、概览、选择页、底部控件 */
+:root[data-theme="dark"] .chapter-divider .chapter-num {
+  color: rgba(167, 139, 250, .42);
+}
+
+:root[data-theme="dark"] .toc-row:hover,
+:root[data-theme="dark"] .picker-list button:hover {
+  background: #181e2c;
+}
+
+:root[data-theme="dark"] .toc-dots { border-bottom-color: #343d52; }
+
+:root[data-theme="dark"] #toc-panel { background: rgba(3, 6, 12, .68); }
+:root[data-theme="dark"] .toc-card {
+  background: #161b26;
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+}
+
+:root[data-theme="dark"] #hint { color: #5b667c; }
+
+:root[data-theme="dark"] #controls button {
+  color: #9aa5ba;
+  background: rgba(22, 27, 38, .9);
+  border-color: #2b3448;
+}
+:root[data-theme="dark"] #controls button:hover {
+  color: #e6eaf2;
+  border-color: #5b6599;
+}
+
+:root[data-theme="dark"] body.overview #stage { background: #0b0e14; }
+:root[data-theme="dark"] body.overview .slide {
+  background: #11151d;
+  border-color: var(--line);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+}
+:root[data-theme="dark"] body.overview .slide::after { color: #68748a; }
+
+:root[data-theme="dark"] .picker-num { color: #556075; }

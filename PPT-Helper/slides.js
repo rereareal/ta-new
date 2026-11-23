@@ -7,6 +7,7 @@ const deck = document.getElementById('deck');
 const pageno = document.getElementById('pageno');
 const hud = document.getElementById('hud');
 const fitToggle = document.getElementById('fit-toggle');
+const themeToggle = document.getElementById('theme-toggle');
 
 let slides = [];
 let idx = 0;
@@ -20,6 +21,31 @@ let fitMode = 'contain';
 try {
   if (localStorage.getItem(FIT_KEY) === 'stretch') fitMode = 'stretch';
 } catch { /* 隐私模式下 localStorage 可能不可用 */ }
+
+/* 配色主题：light = 浅色，dark = 深色 */
+const THEME_KEY = 'slides-theme';
+let themeMode = 'light';
+try {
+  if (localStorage.getItem(THEME_KEY) === 'dark') themeMode = 'dark';
+} catch { /* 隐私模式下 localStorage 可能不可用 */ }
+
+function applyTheme() {
+  document.documentElement.dataset.theme = themeMode;
+  if (!themeToggle) return;
+  const dark = themeMode === 'dark';
+  themeToggle.textContent = dark ? '浅色' : '深色';
+  themeToggle.title = dark
+    ? '当前：深色模式，点击切回浅色（D）'
+    : '当前：浅色模式，点击切换深色（D）';
+}
+
+function toggleTheme() {
+  themeMode = themeMode === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem(THEME_KEY, themeMode); } catch { /* 忽略 */ }
+  applyTheme();
+}
+
+applyTheme();
 
 /* ---------- Markdown → 页 ---------- */
 
@@ -737,6 +763,11 @@ function build(md, mdUrl = null) {
   document.getElementById('error').hidden = true;
   picker.hidden = true;
   pickerMode = false;
+  document.body.classList.remove('is-picker');
+  document.getElementById('hud').style.display = '';
+  fitToggle.style.display = '';
+  document.getElementById('toc-toggle').style.display = '';
+  document.getElementById('hint').style.display = '';
 
   const start = parseInt(location.hash.slice(1), 10);
   go(Number.isFinite(start) ? start - 1 : 0);
@@ -836,8 +867,15 @@ function toggleFullscreen() {
 }
 
 window.addEventListener('keydown', e => {
-  if (pickerMode) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+  if (e.key === 'd' || e.key === 'D') {
+    e.preventDefault();
+    toggleTheme();
+    return;
+  }
+
+  if (pickerMode) return;
 
   // 目录面板打开时只接受关闭快捷键，避免误翻页
   if (isTocOpen()) {
@@ -926,6 +964,7 @@ window.addEventListener('resize', () => {
 document.addEventListener('fullscreenchange', rescale);
 
 fitToggle.addEventListener('click', toggleFit);
+themeToggle?.addEventListener('click', toggleTheme);
 
 /* 目录面板 */
 document.getElementById('toc-toggle')?.addEventListener('click', toggleToc);
@@ -1033,6 +1072,7 @@ function openDeck(name) {
 
 async function showPicker() {
   pickerMode = true;
+  document.body.classList.add('is-picker');
   picker.hidden = false;
   closeToc();
   document.getElementById('hud').style.display = 'none';
