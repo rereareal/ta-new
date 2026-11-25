@@ -3,6 +3,7 @@ import { defineStore } from "pinia";
 
 import * as authApi from "@/api/auth.ts";
 import { setAuthToken } from "@/api/client.ts";
+import { demoMode } from "@/config.ts";
 import type { Credentials, Role } from "@/types/index.ts";
 import { resetDomainStores } from "./reset.ts";
 
@@ -14,10 +15,16 @@ interface Session {
   readonly role: Role;
 }
 
+const DEMO_SESSION: Session = {
+  token: "demo-token",
+  email: "demo@edututor.local",
+  role: "admin",
+};
+
 function loadSession(): Session | null {
   const raw = localStorage.getItem(STORAGE_KEY);
   if (raw === null) {
-    return null;
+    return demoMode ? DEMO_SESSION : null;
   }
 
   try {
@@ -34,7 +41,7 @@ function loadSession(): Session | null {
   }
 
   localStorage.removeItem(STORAGE_KEY);
-  return null;
+  return demoMode ? DEMO_SESSION : null;
 }
 
 export const useSessionStore = defineStore("session", () => {
@@ -74,6 +81,13 @@ export const useSessionStore = defineStore("session", () => {
     adopt(result.access_token, credentials.email, result.role);
   }
 
+  function enterDemo(): void {
+    if (!demoMode) {
+      return;
+    }
+    adopt(DEMO_SESSION.token, DEMO_SESSION.email, DEMO_SESSION.role);
+  }
+
   function logout(): void {
     persist(null);
     resetDomainStores();
@@ -89,6 +103,7 @@ export const useSessionStore = defineStore("session", () => {
     initial,
     login,
     register,
+    enterDemo,
     logout,
   };
 });

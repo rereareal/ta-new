@@ -111,4 +111,17 @@ describe("stores", () => {
     expect(courses.currentCourse?.id).toBe("prob");
     spy.mockRestore();
   });
+
+  it("auto-authenticates as demo admin when demoMode is enabled", () => {
+    const session = useSessionStore();
+    expect(session.isAuthenticated).toBe(true);
+    expect(session.isAdmin).toBe(true);
+
+    session.logout();
+    expect(session.isAuthenticated).toBe(false);
+
+    session.enterDemo();
+    expect(session.isAuthenticated).toBe(true);
+    expect(session.isAdmin).toBe(true);
+  });
 });

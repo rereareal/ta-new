@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 
 import AppLogo from "@/components/layout/AppLogo.vue";
 import AppIcon, { type IconName } from "@/components/ui/AppIcon.vue";
+import { demoMode } from "@/config.ts";
 import { useSessionStore } from "@/stores/session.ts";
 import { useSystemStore } from "@/stores/system.ts";
 import { apiErrorMessage } from "@/utils/errors.ts";
@@ -67,6 +68,11 @@ async function submit(): Promise<void> {
   } finally {
     submitting.value = false;
   }
+}
+
+async function enterDemo(): Promise<void> {
+  session.enterDemo();
+  await router.replace(next.value);
 }
 
 onMounted(async () => {
@@ -215,6 +221,15 @@ onMounted(async () => {
               }}
             </button>
           </form>
+
+          <button
+            v-if="demoMode"
+            type="button"
+            class="mt-3 flex h-10 w-full items-center justify-center rounded-xl border border-slate-200 bg-white text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            @click="enterDemo"
+          >
+            免登录进入演示模式
+          </button>
 
           <div class="mt-6 flex items-center justify-between text-[11px] text-slate-400">
             <span class="flex items-center gap-1.5">
