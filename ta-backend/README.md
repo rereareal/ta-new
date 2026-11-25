@@ -43,6 +43,8 @@ dev              # 等价于 uv run dev
 | `SECRET_KEY` | JWT 签名密钥，泄露等于任何人都能伪造登录态 | **必填**（生产环境务必换成随机长串） |
 | `ALGORITHM` | JWT 算法 | `HS256` |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | token 有效期（分钟） | `1440` |
+| `OPENAI_API_KEY` | OpenAI API 密钥（agent 模块调用大模型） | **必填** |
+| `OPENAI_MODEL` | OpenAI 模型名 | `gpt-4.1` |
 
 ## 目录结构
 
@@ -52,6 +54,7 @@ main.py                  应用入口：lifespan（启动建表、关闭释放�
 core/                    应用运行期的基础设施（被 main.py / modules 依赖）
   config.py              应用配置（pydantic-settings，从环境变量 / .env 读取）
   database.py            engine、init_db()、请求级 Session 依赖 SessionDep
+  llm.py                 AsyncOpenAI 客户端，应用启停时创建 / 释放
   security.py            密码哈希与 JWT 签发/校验
   errors.py              ServiceError 与全局错误处理器（统一 {code, detail}）
 modules/<业务>/          按业务能力分模块，内部再分职责
@@ -77,6 +80,8 @@ scripts/                 开发期工具，应用运行时不 import
 | POST | `/auth/register` | 注册 |
 | POST | `/auth/login` | 登录，返回 `access_token` |
 | GET | `/auth/me` | 当前用户，需请求头 `Authorization: Bearer <token>` |
+| POST | `/agent/chat` | 多轮工具调用问答（非流式），需 `Authorization: Bearer <token>` |
+| POST | `/agent/runs` | 多轮工具调用问答（SSE 流式），需 `Authorization: Bearer <token>` |
 
 成功一律返回 200；业务错误由全局处理器统一转成 `{code, detail}`，HTTP 层不写 `try/except`。
 

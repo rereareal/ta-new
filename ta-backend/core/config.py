@@ -29,5 +29,9 @@ class Settings(BaseSettings):
     # token 有效期（分钟）
     access_token_expire_minutes: int = 60 * 24
 
+    # OpenAI 模型调用（agent 模块使用）
+    openai_api_key: str
+    openai_model: str = "gpt-4.1"
+
 
 settings = Settings()  # type: ignore[call-arg]
