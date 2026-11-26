@@ -19,20 +19,20 @@
 
 ## 本地启动与页面地图
 
-拿到仓库后，先用 `pnpm` 安装依赖并启动开发服务器（默认代理 `/api` 到后端 `127.0.0.1:8000`）：
+拿到仓库后，先用 `pnpm` 安装依赖并启动开发服务器，默认将 `/api` 代理到后端 `127.0.0.1:8000`：
 
 ::: cols 0.95fr 1.4fr
 
 ```bash
 cd ta-webui
 pnpm install   # 安装依赖
-pnpm dev       # 开发服务（5173）
-pnpm check     # 格式/lint/类型
+pnpm dev       # 启动开发服务，默认 5173 端口
+pnpm check     # 格式、Lint 与类型检查
 pnpm test      # 单元测试
 pnpm build     # 生产构建
 ```
 
-- 开发环境默认开启 `demoMode`（读 `src/demo/`），认证与探针仍走真实后端
+- 开发环境默认开启 `demoMode`，读取 `src/demo/` 数据；认证与探针仍走真实后端
 - 关闭演示：在 `.env.local` 中设置 `VITE_DEMO_MODE=false`
 
 |||
@@ -64,14 +64,14 @@ ta-webui/
   tsconfig.json      # strict + noUncheckedIndexedAccess + @/* 映射
   tsconfig.vue.json  # 专供 vue-tsc（排除 vue-shim.d.ts）
   src/
-    types/           # 最底层：领域 DTO、ApiError（无内部依赖）
+    types/           # 最底层：领域 DTO、ApiError，无内部依赖
     utils/           # 纯函数叶子：errors / labels / nav / status / tone
     config.ts        # 统一导出 apiBaseUrl 与 demoMode
     api/             # 唯一 HTTP 出口：client.ts + 按领域拆分的接口模块
     demo/            # 演示数据与内存会话，仅由 api/ 动态 import
     stores/          # Pinia：session / chat / courses / progress / resources / agent / system / toast
-    composables/     # 浏览器能力封装：useRecorder（STT）、useTts（TTS）
-    components/      # layout/、ui/（纯组件）、chat/、knowledge/、progress/
+    composables/     # 浏览器语音能力封装：useRecorder 与 useTts
+    components/      # layout/、ui/ 通用组件、chat/、knowledge/、progress/
     views/           # 路由页面，只读 store 与 config，不直接发请求
     router/index.ts  # 懒加载路由 + 登录/管理员前置守卫
     __tests__/       # 基于 vite-plus/test 的核心单元测试
@@ -95,11 +95,11 @@ ta-webui/
 
 | 依赖 | 用途 |
 | --- | --- |
-| `vue` (`^3.5`) | 组合式 API（`<script setup>`） |
-| `vue-router` (`^5.4`) | 路由懒加载与权限守卫 |
-| `pinia` (`^4.1`) | Setup Store 状态管理 |
-| `markdown-it` (`^15.0`) | 知识单元与导师回复渲染 |
-| `dompurify` (`^3.4`) | 富文本 XSS 消毒 |
+| `vue` | 组合式 API |
+| `vue-router` | 路由懒加载与权限守卫 |
+| `pinia` | Setup Store 状态管理 |
+| `markdown-it` | 知识单元与导师回复渲染 |
+| `dompurify` | 富文本 XSS 消毒 |
 
 |||
 
@@ -159,15 +159,15 @@ export const demoMode = import.meta.env.DEV
 
 ```mermaid
 flowchart LR
-  V["views/ 页面层"] --> S["stores/ 状态层"]
-  C["components/ 组件层"] --> S
-  C --> COMP["composables/<br/>语音能力"]
-  S --> API["api/ 唯一请求出口"]
+  V["页面层（views/）"] --> S["状态层（stores/）"]
+  C["组件层（components/）"] --> S
+  C --> COMP["语音能力（composables/）"]
+  S --> API["唯一请求出口（api/）"]
   COMP --> API
-  API -. "dynamic import (demoMode)" .-> DEMO["demo/ 演示数据"]
-  V --> U["utils/ 纯函数叶子"]
+  API -. "按需动态导入" .-> DEMO["演示数据（demo/）"]
+  V --> U["纯函数工具（utils/）"]
   S --> U
-  API --> T["types/ 最底层契约"]
+  API --> T["最底层契约（types/）"]
   U --> T
 ```
 
@@ -207,7 +207,7 @@ sequenceDiagram
 
 ### 内建统一能力
 
-- **统一入口**：所有请求收敛到 `request` / `requestForm` / `requestBlob`。
+- **统一入口**：所有请求统一经过 `request`、`requestForm` 或 `requestBlob`。
 - **超时与取消**：默认 15s 超时，支持传入外部 `AbortSignal` 合并取消。
 - **错误兼容**：同时解析 `{ code, detail }` 与 FastAPI 422 校验数组，抛出强类型 `ApiError`。
 
@@ -265,7 +265,7 @@ export function listDemoResources(): ResourceSummary[] {
 
 - **异步状态机**：使用 `LoadStatus`（`"idle" | "loading" | "ready" | "error"`）配合 `isLoading()`。
 - **防异步竞态**：`courses`、`progress`、`resources` 在切换课程或查看详情时使用递增请求序号（`seq`），丢弃晚到的过期响应。
-- **全局通知**：`useToastStore` 收敛原分散的全局状态，由 `ToastHost.vue` 统一渲染（4 秒自动消失）。
+- **全局通知**：`useToastStore` 统一管理全局提示，由 `ToastHost.vue` 渲染，4 秒后自动消失。
 - **引用计数轮询**：`useSystemStore` 提供 `startPolling()` / `stopPolling()`，多处挂载只维护一个定时器。
 
 |||
@@ -323,11 +323,11 @@ function logout(): void {
 新增一个业务模块或将现有页面从 Demo 切换到真实后端时，推荐按自底向上的顺序推进：
 
 ::: timeline
-1. **定义契约（`src/types/index.ts`）**：补充请求与响应 DTO 接口（与后端 Pydantic Schema 对齐）。
-2. **编写工具与徽标（`src/utils/labels.ts`）**：如需新状态枚举，在 `labels.ts` 增加文案与 `Tone` 映射。
-3. **封装接口（`src/api/<domain>.ts`）**：使用 `request` / `requestForm` 暴露强类型函数；若需演示数据，仅在函数内动态 `import("@/demo/...")`。
-4. **维护状态（`src/stores/<domain>.ts`）**：使用 `LoadStatus`、必要时加 `seq` 防竞态，实现 `clear()` 并在 `stores/reset.ts` 登记。
-5. **组装视图与组件（`src/components/` & `src/views/`）**：图标统一用 `<AppIcon name="..." />`，错误提示用 `ErrorBanner` 或 `useToastStore`。
+1. **定义契约**：在 `src/types/index.ts` 补充请求与响应 DTO 接口，与后端 Pydantic Schema 对齐。
+2. **编写工具与徽标**：如需新状态枚举，在 `src/utils/labels.ts` 增加文案与 `Tone` 映射。
+3. **封装接口**：在 `src/api/<domain>.ts` 使用 `request` / `requestForm` 暴露强类型函数；若需演示数据，仅在函数内动态 `import("@/demo/...")`。
+4. **维护状态**：在 `src/stores/<domain>.ts` 使用 `LoadStatus`、必要时加 `seq` 防竞态，实现 `clear()` 并在 `stores/reset.ts` 登记。
+5. **组装视图与组件**：在 `src/components/` 与 `src/views/` 中，图标统一用 `<AppIcon name="..." />`，错误提示用 `ErrorBanner` 或 `useToastStore`。
 6. **补齐测试并验证**：在 `src/__tests__/` 增加单测，跑通 `pnpm format && pnpm check && pnpm test && pnpm build`。
 :::
 
@@ -372,24 +372,19 @@ pnpm build      # 验证生产包构建通过
 
 ::: cards 3
 
-### 后端架构与开发指南
+### [后端架构与开发指南](?src=decks/intro.md)
 FastAPI 全局底座、错误码约定与 5 文件业务模块规范。
 
-→ [打开 `intro.md`](?src=decks/intro.md)
+|||
+
+### [课程与资源模块设计与实现](?src=decks/course-resource.md)
+多格式资料解析与渐进式披露知识表。
 
 |||
 
-### 课程与资源模块设计与实现
-多格式资料解析（`resource`）与渐进式披露知识表（`course`）。
-
-→ [打开 `course-resource.md`](?src=decks/course-resource.md)
-
-|||
-
-### 智能体与语音底座指南
-SSE 流式输出、工具框架及 GPU 集群 ASR/TTS 部署。
-
-→ [打开 `agent.md`](?src=decks/agent.md) · [打开 `speech.md`](?src=decks/speech.md)
+### 智能体与语音服务
+- [Agent 模块设计与实现](?src=decks/agent.md)
+- [语音服务部署与模块开发指南](?src=decks/speech.md)
 
 :::
 
