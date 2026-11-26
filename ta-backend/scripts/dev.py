@@ -23,7 +23,9 @@ def main() -> None:
         description="启动本地开发服务器（默认开启代码热重载）",
     )
     parser.add_argument("--host", default=DEV_HOST, help=f"监听地址，默认 {DEV_HOST}")
-    parser.add_argument("--port", type=int, default=DEV_PORT, help=f"端口，默认 {DEV_PORT}")
+    parser.add_argument(
+        "--port", type=int, default=DEV_PORT, help=f"端口，默认 {DEV_PORT}"
+    )
     parser.add_argument("--no-reload", action="store_true", help="关闭代码热重载")
     args = parser.parse_args()
 

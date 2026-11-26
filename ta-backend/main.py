@@ -13,13 +13,13 @@ from modules.auth.router import router as auth_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()             # 启动：建表
-    yield                 # 运行期间
+    init_db()  # 启动：建表
+    yield  # 运行期间
     await client.close()  # 关闭：释放大模型连接
-    enging.dispose()      # 关闭：释放连接池
+    enging.dispose()  # 关闭：释放连接池
 
 
 app = FastAPI(lifespan=lifespan)
-install_error_handlers(app)   # 统一错误格式 {code, detail}
+install_error_handlers(app)  # 统一错误格式 {code, detail}
 app.include_router(auth_router)
 app.include_router(agent_router)

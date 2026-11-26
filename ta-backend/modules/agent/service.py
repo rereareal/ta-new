@@ -79,7 +79,10 @@ async def run_agent_stream(
         async for ev in stream:
             if ev.type == "response.output_text.delta":
                 yield {"event": "message.delta", "data": {"text": ev.delta}}
-            elif ev.type == "response.output_item.done" and ev.item.type == "function_call":
+            elif (
+                ev.type == "response.output_item.done"
+                and ev.item.type == "function_call"
+            ):
                 pending_calls.append(ev.item)
             elif ev.type == "response.completed":
                 response_id = ev.response.id
