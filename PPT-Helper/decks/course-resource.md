@@ -1,6 +1,6 @@
 # 课程与资源模块设计与实现
 
-基于教学智能体后端统一架构，从 MVP 起步构建资源解析（`resource`）与渐进式披露知识表（`course`）
+基于教学智能体后端统一架构，从 MVP 起步构建资源解析与渐进式披露知识表
 
 ---
 
@@ -45,10 +45,10 @@
 
 ```mermaid
 flowchart LR
-  U["老师 / 学生上传<br/>MD / PDF / PPTX"] --> R["resource 模块<br/>落盘 + 解析器"]
-  R -- "统一文本 / MD" --> C["course 模块<br/>绑定课程 + 知识表"]
+  U["老师 / 学生上传<br/>MD / PDF / PPTX"] --> R["资料解析模块（resource）<br/>落盘 + 解析器"]
+  R -- "统一文本 / MD" --> C["课程管理模块（course）<br/>绑定课程 + 知识表"]
   C -- "渐进式披露 .md" --> H["人工审阅<br/>告别 AI Slop"]
-  C -- "L1 大纲 / L3 详情" --> A["agent 模块<br/>按需工具调用"]
+  C -- "L1 大纲 / L3 详情" --> A["智能体模块（agent）<br/>按需工具调用"]
 ```
 
 ::: cols 1fr 1fr
@@ -720,11 +720,11 @@ MVP 跑通后，按四轮迭代接入更多媒介、AI 草稿审阅、Agent 工�
 
 ::: cols 1.15fr 1fr
 
-### 提交合并请求前的自查清单
+### 提交代码前的自查清单
 
 - [ ] 在独立分支开发（如 `feat/resource`、`feat/course`），未直接提交到 `main`
-- [ ] 新表模型已在 `core/database.py` 的 `init_db()` 中导入（使用别名避免冲突）
-- [ ] 业务错误全部在各自模块继承 `ServiceError` 并声明唯一 `code`（全站只出 400 / 401）
+- [ ] 新表模型已在 `core/database.py` 的 `init_db()` 中导入，并使用别名避免冲突
+- [ ] 业务错误全部在各自模块继承 `ServiceError` 并声明唯一 `code`，全站仅返回 400 / 401
 - [ ] 所有读写接口均注入 `Depends(get_current_user)` 并校验 `owner_id` 归属
 - [ ] `storage/` 已加入 `.gitignore`，接口响应不泄露本地绝对路径
 - [ ] 运行 `uv run ruff check .` 与 `uv run ruff format --check .` 通过
@@ -743,10 +743,10 @@ ok 知识表用 L1/L2/L3 渐进披露兼顾审阅与省 Token
 
 ### 继续阅读其他文档
 
-- [后端架构与开发指南 `intro.md`](?src=decks/intro.md)
-- [前端架构与开发指南 `intro-webui.md`](?src=decks/intro-webui.md)
-- [Agent 模块设计与实现 `agent.md`](?src=decks/agent.md)
-- [语音底座部署指南 `speech.md`](?src=decks/speech.md)
+- [后端架构与开发指南](?src=decks/intro.md)
+- [前端架构与开发指南](?src=decks/intro-webui.md)
+- [Agent 模块设计与实现](?src=decks/agent.md)
+- [语音服务部署与模块开发指南](?src=decks/speech.md)
 - 按 `L` 或 [返回幻灯片选择页](./)
 
 :::

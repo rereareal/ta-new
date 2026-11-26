@@ -23,9 +23,9 @@
 
 ```mermaid
 flowchart LR
-  B["FastAPI 后端"] -- "① 发送讲稿文本" --> F["Fish Speech S2-Pro (TTS)<br/>端口 8080"]
+  B["FastAPI 后端"] -- "① 发送讲稿文本" --> F["语音合成服务（Fish Speech S2-Pro）<br/>端口 8080"]
   F -- "② 返回合成音频" --> B
-  B -- "③ 上传学生录音" --> W["Whisper (ASR)<br/>端口 8001"]
+  B -- "③ 上传学生录音" --> W["语音识别服务（Whisper）<br/>端口 8001"]
   W -- "④ 返回识别文字" --> B
 ```
 

@@ -212,7 +212,7 @@ Function Calling 的本质是：**模型不会替你运行 Python 函数**，它
 
 ::: cols 1.2fr 1fr
 
-### 1. 注册表与执行入口（`tools.py` 上半部分）
+### 1. 注册表与执行入口（`tools.py`）
 
 ```python
 TOOL_REGISTRY: dict[str, tuple[type[BaseModel], Callable]] = {}
@@ -238,7 +238,7 @@ async def execute_tool(name: str, raw_args: str, ctx) -> str:
 
 |||
 
-### 2. 注册第一个只读工具（`tools.py` 下半部分）
+### 2. 注册第一个只读工具（`tools.py`）
 
 ```python
 # MVP 示例讲义（后续迭代替换成查数据库）
@@ -515,15 +515,10 @@ flowchart LR
 
 ### 继续阅读其他文档
 
-- **后端架构与开发指南**  
-  [打开 `intro.md`](?src=decks/intro.md)
-- **前端架构与开发指南**  
-  [打开 `intro-webui.md`](?src=decks/intro-webui.md)
-- **课程与资源模块设计与实现**  
-  [打开 `course-resource.md`](?src=decks/course-resource.md)
-- **语音底座部署指南**  
-  [打开 `speech.md`](?src=decks/speech.md)
-- **全部幻灯片列表**  
-  按 `L` 或 [返回选择页](./)
+- [后端架构与开发指南](?src=decks/intro.md)
+- [前端架构与开发指南](?src=decks/intro-webui.md)
+- [课程与资源模块设计与实现](?src=decks/course-resource.md)
+- [语音服务部署与模块开发指南](?src=decks/speech.md)
+- 按 `L` 或 [返回选择页](./)
 
 :::
