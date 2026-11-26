@@ -62,7 +62,7 @@ pnpm install && pnpm dev  # 默认监听 http://localhost:5173
 | 项目总览 | — | [`overview.md`](PPT-Helper/decks/overview.md) |
 | 后端底座与认证 (`core` + `auth`) | 已实现 | [`ta-backend/README.md`](ta-backend/README.md) · [`intro.md`](PPT-Helper/decks/intro.md) |
 | 前端应用 (`ta-webui`) | 原型与分层就绪 | [`ta-webui/README.md`](ta-webui/README.md) · [`intro-webui.md`](PPT-Helper/decks/intro-webui.md) |
-| 资料解析与课程知识表 (`resource` / `course`) | 设计完备，待开发 | [`course-resource.md`](PPT-Helper/decks/course-resource.md) |
-| 智能体 (`agent`) | 设计完备，待开发 | [`agent.md`](PPT-Helper/decks/agent.md) |
-| 语音交互 (`speech`) | 设计完备，待开发 | [`speech.md`](PPT-Helper/decks/speech.md) · [`cluster-guide.md`](PPT-Helper/decks/cluster-guide.md) |
+| 资料解析与课程知识表 (`resource` / `course`) | 待开发 | [`course-resource.md`](PPT-Helper/decks/course-resource.md) |
+| 智能体 (`agent`) | 待开发 | [`agent.md`](PPT-Helper/decks/agent.md) |
+| 语音交互 (`speech`) | 待开发 | [`speech.md`](PPT-Helper/decks/speech.md) · [`cluster-guide.md`](PPT-Helper/decks/cluster-guide.md) |
 | Git 分支流与团队协作规范 | — | [`git-collab.md`](PPT-Helper/decks/git-collab.md) |
